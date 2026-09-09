@@ -1,0 +1,155 @@
+/* Aiutoma WPML Admin CSS */
+
+/* WPML Item Row */
+.aiutoma-wpml-item-row {
+    padding: 12px 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+}
+
+.aiutoma-wpml-checkbox-label {
+    margin-right: 12px;
+    margin-bottom: 0;
+}
+
+.aiutoma-wpml-item-title {
+    text-decoration: none;
+    font-weight: 500;
+    margin-right: 12px;
+}
+
+.aiutoma-wpml-item-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.aiutoma-wpml-icon-update {
+    color: #f0b849;
+    vertical-align: text-bottom;
+}
+
+.aiutoma-wpml-icon-missing {
+    color: #2271b1;
+    vertical-align: text-bottom;
+}
+
+.aiutoma-wpml-item-id {
+    color: #888;
+}
+
+.aiutoma-wpml-translating {
+    background: #fff8e5 !important;
+}
+
+.aiutoma-wpml-success {
+    background: #e5ffe5 !important;
+}
+
+.aiutoma-wpml-failed {
+    background: #ffe5e5 !important;
+}
+
+.aiutoma-wpml-badge-success {
+    background: #00a32a;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-left: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.aiutoma-wpml-badge-failed {
+    background: #d63638;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-left: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.aiutoma-wpml-flag-inactive {
+    opacity: 0.3;
+    filter: grayscale(100%);
+}
+
+/* WPML Strings Row */
+.aiutoma-wpml-string-row {
+    padding: 12px 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: flex-start;
+}
+
+.aiutoma-wpml-string-content {
+    flex-grow: 1;
+    max-width: 80%;
+}
+
+.aiutoma-wpml-string-actions {
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.aiutoma-wpml-no-strings {
+    padding: 15px;
+}
+
+.aiutoma-wpml-string-success {
+    opacity: 0.5;
+}
+
+.aiutoma-wpml-icon-success {
+    color: #46b450;
+}
+
+.aiutoma-wpml-icon-failed {
+    color: #dc3232;
+}
+
+/* WPML Inject Buttons Animation & Styles */
+.aiutoma-wpml-spin {
+    animation: rotation 2s infinite linear;
+}
+
+@keyframes rotation {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(359deg); }
+}
+
+.aiutoma-translate-btn .dashicons {
+    font-size: 14px;
+    line-height: 22px;
+    margin-top: 2px;
+}
+
+.aiutoma-list-translate-btn {
+    margin-left: 4px;
+    padding: 0 4px !important;
+    min-height: 20px !important;
+    line-height: 18px !important;
+}
+
+.aiutoma-list-translate-btn .dashicons {
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.aiutoma-wpml-list-success {
+    color: green;
+    font-size: 14px;
+    line-height: 20px;
+    margin-left: 4px;
+}
+
+.aiutoma-auto-translate-wrap {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ddd;
+}

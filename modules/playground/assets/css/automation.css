@@ -1,0 +1,174 @@
+/* Aiutoma Automation CSS */
+.aiutoma-automation-table-container {
+    width: 100%;
+}
+
+.aiutoma-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.aiutoma-modal-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 4px;
+    width: 90%;
+    max-width: 600px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.aiutoma-modal-close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    text-decoration: none;
+}
+
+.aiutoma-modal-close:hover {
+    color: #000;
+}
+
+.aiutoma-automation-critical-warning {
+    color: #d63638;
+    font-size: 11px;
+}
+
+.aiutoma-automation-status-paused {
+    color: red;
+}
+
+.aiutoma-automation-status-active {
+    color: green;
+}
+
+.aiutoma-automation-form-group {
+    margin-bottom: 10px;
+}
+
+.aiutoma-automation-form-group input[type="text"],
+.aiutoma-automation-form-group input[type="datetime-local"],
+.aiutoma-automation-form-group select,
+.aiutoma-automation-form-group textarea {
+    width: 100%;
+}
+
+.aiutoma-automation-form-group textarea {
+    height: 100px;
+}
+
+.aiutoma-automation-cron-wrap,
+.aiutoma-automation-once-wrap {
+    display: none;
+    margin-top: 5px;
+}
+
+.aiutoma-automation-cron-wrap input {
+    font-family: monospace;
+}
+
+.aiutoma-automation-critical-box {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #fcf0f1;
+    border-left: 4px solid #d63638;
+}
+
+.aiutoma-automation-critical-box .description {
+    margin-top: 5px;
+    color: #d63638;
+}
+
+.aiutoma-automation-log-box {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #3c434a;
+    max-width: 800px;
+}
+
+.aiutoma-log-sep {
+    margin: 20px 0;
+    border: none;
+    border-bottom: 1px dashed #ccd0d4;
+}
+
+.aiutoma-log-time {
+    color: #2271b1;
+    font-weight: 600;
+    font-size: 13px;
+    background: #f6f7f7;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #dcdcde;
+    display: inline-block;
+    margin-bottom: 5px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.aiutoma-task-setting-group {
+    margin-bottom: 15px;
+}
+
+.aiutoma-task-model-select {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Custom colored action buttons */
+.aiutoma-btn-run {
+    background-color: #2271b1 !important;
+    color: #fff !important;
+    border-color: #2271b1 !important;
+}
+.aiutoma-btn-run:hover {
+    background-color: #135e96 !important;
+    border-color: #135e96 !important;
+}
+
+.aiutoma-btn-edit {
+    background-color: #f08200 !important;
+    color: #fff !important;
+    border-color: #d87500 !important;
+}
+.aiutoma-btn-edit:hover {
+    background-color: #d87500 !important;
+    border-color: #b96400 !important;
+}
+
+.aiutoma-btn-delete {
+    background-color: #d63638 !important;
+    color: #fff !important;
+    border-color: #c92c2e !important;
+}
+.aiutoma-btn-delete:hover {
+    background-color: #b32d2e !important;
+    border-color: #9b2728 !important;
+}
+
+.aiutoma-btn-session {
+    background-color: #00a0d2 !important;
+    color: #fff !important;
+    border-color: #008ebc !important;
+}
+.aiutoma-btn-session:hover {
+    background-color: #008ebc !important;
+    border-color: #00739c !important;
+}

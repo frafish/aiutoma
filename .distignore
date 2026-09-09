@@ -1,0 +1,22 @@
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Development files & package managers
+.editorconfig
+.distignore
+composer.json
+composer.lock
+
+# Vendor unwanted files
+vendor/**/examples/
+vendor/**/tests/
+vendor/**/docs/
+vendor/**/doc/
+vendor/**/.github/
+vendor/**/.gitattributes
+vendor/**/.gitignore
+vendor/**/.editorconfig
+docs/
+README.md

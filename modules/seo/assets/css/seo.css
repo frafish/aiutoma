@@ -1,0 +1,78 @@
+/* Aiutoma SEO CSS */
+
+/* General settings layout */
+.aiutoma-seo-card {
+    max-width: 800px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.aiutoma-seo-card-wide {
+    max-width: 1000px;
+}
+
+.aiutoma-seo-flex-row {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Bulk Optimization UI */
+.aiutoma-seo-log-container {
+    margin-top: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    display: none;
+}
+
+.aiutoma-seo-log-list {
+    margin: 0;
+}
+
+/* Status Colors */
+.aiutoma-seo-status-success {
+    color: green;
+}
+
+.aiutoma-seo-status-error {
+    color: red;
+}
+
+.aiutoma-seo-status-processing {
+    color: orange;
+}
+
+/* Content SEO Table */
+.aiutoma-seo-slug {
+    color: #666;
+}
+
+.aiutoma-seo-excerpt {
+    font-size: 12px;
+}
+
+.aiutoma-seo-no-excerpt {
+    color: #999;
+    font-size: 12px;
+}
+
+/* Checkbox layouts */
+.aiutoma-seo-checkbox-row {
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Media Library Modal */
+.aiutoma-seo-media-btn-wrap {
+    margin-top: 10px;
+}
+
+.aiutoma-seo-spinner {
+    float: none;
+    margin-top: 4px;
+}

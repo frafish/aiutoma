@@ -1,0 +1,22 @@
+{
+    "require": {
+        "league/commonmark": "^2.10.0",
+        "smalot/pdfparser": "^2.12",
+        "shuchkin/simplexlsx": "^1.1",
+        "shuchkin/simplexls": "^1.0"
+    },
+    "scripts": {
+        "cleanup-vendor": [
+            "@php -r \"foreach(['vendor/shuchkin/simplexls/examples', 'vendor/shuchkin/simplexlsx/examples'] as \\$d) { if (is_dir(\\$d)) { \\$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(\\$d, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST); foreach (\\$it as \\$f) { \\$f->isDir() ? @rmdir(\\$f->getRealPath()) : @unlink(\\$f->getRealPath()); } @rmdir(\\$d); } }\""
+        ],
+        "post-install-cmd": [
+            "@cleanup-vendor"
+        ],
+        "post-update-cmd": [
+            "@cleanup-vendor"
+        ],
+        "post-autoload-dump": [
+            "@cleanup-vendor"
+        ]
+    }
+}

@@ -1,0 +1,223 @@
+/* Aiutoma Chatbot Admin CSS */
+
+/* General settings layout */
+.aiutoma-chatbot-select-model {
+    min-width: 300px;
+    margin-bottom: 5px;
+}
+
+.aiutoma-chatbot-select-fallback {
+    min-width: 300px;
+    height: 150px;
+}
+
+.aiutoma-chatbot-flex-actions {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.aiutoma-chatbot-flex-btns {
+    display: flex;
+    gap: 5px;
+}
+
+.aiutoma-chatbot-icon-btn {
+    padding: 0 5px !important;
+}
+
+.aiutoma-chatbot-icon-btn .dashicons {
+    margin-top: 4px;
+    height: 20px;
+    width: 20px;
+}
+
+.aiutoma-chatbot-gdpr-textarea {
+    width: 100%;
+    max-width: 400px;
+}
+
+.aiutoma-chatbot-icon-selector {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 400px;
+    background: #fff;
+}
+
+.aiutoma-chatbot-icon-label {
+    cursor: pointer;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+}
+
+.aiutoma-chatbot-icon-label-active {
+    border-color: #2271b1 !important;
+    background: #e3f2fd !important;
+}
+
+.aiutoma-chatbot-icon-label .dashicons {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+}
+
+/* Chat logs styling */
+.aiutoma-chatbot-log-container {
+    max-width: 800px;
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.aiutoma-chatbot-summary-result {
+    display: none;
+    padding: 15px;
+    background: #f0f6fc;
+    border-left: 4px solid #72aee6;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+.aiutoma-chatbot-user-panel {
+    background: #f8f9fa;
+    border: 1px solid #ccd0d4;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.aiutoma-chatbot-user-panel-col {
+    flex: 1;
+    min-width: 250px;
+}
+
+.aiutoma-chatbot-user-panel-col.stats {
+    min-width: 200px;
+}
+
+.aiutoma-chatbot-user-panel h4 {
+    margin-top: 0;
+}
+
+.aiutoma-chatbot-user-panel p {
+    margin: 0 0 5px 0;
+}
+
+.aiutoma-chatbot-chat-message-wrapper {
+    padding: 15px;
+    border-radius: 8px;
+    text-align: left;
+    position: relative;
+}
+
+.aiutoma-chatbot-chat-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.aiutoma-chatbot-chat-date {
+    font-size: 11px;
+    color: #888;
+}
+
+.aiutoma-chatbot-operator-area {
+    display: none;
+}
+
+.aiutoma-chatbot-operator-textarea {
+    width: 100%;
+    height: 80px;
+}
+
+.aiutoma-chatbot-search-form {
+    float: right;
+}
+
+.aiutoma-chatbot-alert {
+    display: none;
+    border-left-color: #2271b1;
+}
+
+.aiutoma-chatbot-alert-link {
+    margin-left: 10px;
+    color: #2271b1;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+/* Helpers */
+.aiutoma-color-danger {
+    color: #b32d2e;
+}
+
+/* Chat Bubbles */
+.aiutoma-chatbot-msg-ai {
+    background: #f1f1f1;
+    margin: 0 50px 15px 0;
+}
+
+.aiutoma-chatbot-msg-user {
+    background: #e3f2fd;
+    margin: 0 0 15px 50px;
+}
+
+.aiutoma-chatbot-msg-operator {
+    background: #fff3cd;
+    margin: 0 50px 15px 0;
+}
+
+/* Mobile-first and Responsive Adjustments */
+@media screen and (max-width: 782px) {
+    .aiutoma-chatbot-user-panel {
+        gap: 15px;
+        padding: 10px;
+    }
+    
+    .aiutoma-chatbot-user-panel-col, 
+    .aiutoma-chatbot-user-panel-col.stats {
+        min-width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .aiutoma-chatbot-chat-message-wrapper {
+        padding: 12px;
+        padding-top: 35px; /* Leave space for absolute top-right buttons */
+    }
+
+    .aiutoma-chatbot-chat-actions {
+        top: 8px;
+        right: 8px;
+    }
+    
+    .aiutoma-chatbot-msg-ai,
+    .aiutoma-chatbot-msg-operator {
+        margin: 0 15px 15px 0;
+    }
+    
+    .aiutoma-chatbot-msg-user {
+        margin: 0 0 15px 15px;
+    }
+    
+    .aiutoma-chatbot-log-container {
+        padding: 10px;
+        border: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .aiutoma-chatbot-operator-textarea {
+        height: 100px;
+    }
+}

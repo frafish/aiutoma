@@ -1,0 +1,139 @@
+#aiutoma-agent-chatbot {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 350px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.3s ease, border-radius 0.3s ease;
+}
+
+#aiutoma-agent-chatbot.aiutoma-agent-closed {
+    width: 50px;
+    border-radius: 25px;
+    cursor: pointer;
+}
+
+#aiutoma-agent-header {
+    background: var(--wp-admin-theme-color, #2271b1);
+    color: #fff;
+    padding: 10px 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.3s ease;
+}
+
+#aiutoma-agent-chatbot.aiutoma-agent-closed #aiutoma-agent-header {
+    padding: 13px;
+    justify-content: center;
+    border-radius: 25px;
+}
+
+#aiutoma-agent-chatbot.aiutoma-agent-closed .aiutoma-agent-title-text,
+#aiutoma-agent-chatbot.aiutoma-agent-closed #aiutoma-agent-settings-toggle,
+#aiutoma-agent-chatbot.aiutoma-agent-closed #aiutoma-agent-toggle {
+    display: none;
+}
+
+#aiutoma-agent-chatbot.aiutoma-agent-closed .dashicons-superhero {
+    margin: 0;
+}
+
+#aiutoma-agent-header .dashicons-superhero {
+    margin-right: 8px;
+}
+
+#aiutoma-agent-toggle {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+}
+
+#aiutoma-agent-body {
+    display: flex;
+    flex-direction: column;
+    height: 400px;
+}
+
+#aiutoma-agent-messages {
+    flex-grow: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f0f0f1;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.aiutoma-agent-msg {
+    max-width: 85%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.aiutoma-agent-sys,
+.aiutoma-agent-ai {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    align-self: flex-start;
+}
+
+.aiutoma-agent-user {
+    background: #e5f5fa;
+    border: 1px solid #c8e7fa;
+    align-self: flex-end;
+}
+
+#aiutoma-agent-input-area {
+    padding: 10px;
+    border-top: 1px solid #ccd0d4;
+    display: flex;
+    gap: 8px;
+    background: #fff;
+}
+
+#aiutoma-agent-prompt {
+    flex-grow: 1;
+    height: 40px;
+    min-height: 40px;
+    resize: none;
+    padding: 8px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+#aiutoma-agent-send {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+#aiutoma-agent-send .dashicons-controls-play:before {
+    color: white;
+}

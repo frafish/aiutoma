@@ -1,0 +1,16 @@
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f2f5; color: #1d2330; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.maiutoma-oauth-card { background: #fff; border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.08); padding: 36px 36px 28px; max-width: 440px; width: 100%; }
+.maiutoma-oauth-card h1 { font-size: 22px; margin: 0 0 16px; font-weight: 600; }
+.maiutoma-oauth-app { font-size: 15px; line-height: 1.5; margin: 0 0 24px; }
+.maiutoma-oauth-meta { background: #f7f8fa; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
+.maiutoma-oauth-meta > div { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; font-size: 14px; }
+.maiutoma-oauth-label { color: #6b7280; }
+.maiutoma-oauth-value { color: #1d2330; font-weight: 500; text-align: right; }
+.maiutoma-oauth-note { font-size: 13px; color: #6b7280; line-height: 1.5; margin: 0 0 24px; }
+.maiutoma-oauth-buttons { display: flex; gap: 10px; }
+.maiutoma-oauth-buttons button { flex: 1; padding: 11px 14px; border-radius: 8px; border: 1px solid transparent; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.maiutoma-oauth-approve { background: #2271b1; color: #fff; }
+.maiutoma-oauth-approve:hover { background: #135e96; }
+.maiutoma-oauth-deny { background: #fff; color: #1d2330; border-color: #d0d4da; }
+.maiutoma-oauth-deny:hover { background: #f1f2f5; }
+

@@ -1,0 +1,143 @@
+/* Aiutoma MCP Settings CSS */
+#aiutoma-mcp-tabs {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    display: flex;
+    width: 100%;
+}
+
+#aiutoma-mcp-tabs .nav-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 12px 0;
+    font-size: 15px;
+}
+
+#aiutoma-mcp-tabs .nav-tab svg,
+#aiutoma-mcp-tabs .nav-tab .dashicons {
+    margin-right: 8px;
+}
+
+#aiutoma-mcp-tabs .nav-tab .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.aiutoma-mcp-tab-content {
+    padding: 20px;
+    border-top: 1px solid #c3c4c7;
+    margin-top: 0;
+    border-top-left-radius: 0;
+}
+
+.aiutoma-mcp-code-block {
+    position: relative;
+    background: #f0f0f0;
+    padding: 15px;
+    margin-bottom: 15px;
+    font-family: monospace;
+    overflow-x: auto;
+}
+
+.aiutoma-mcp-code-block-gemini {
+    border-left: 4px solid #1a1a1a;
+    margin: 10px 0;
+}
+
+.aiutoma-mcp-code-block-claude-issuer {
+    border-left: 4px solid #0073aa;
+}
+
+.aiutoma-mcp-code-block-claude-legacy {
+    border-left: 4px solid #72aee6;
+}
+
+.aiutoma-mcp-code-block-webhook {
+    border-left: 4px solid #0073aa;
+}
+
+.aiutoma-mcp-code-block .aiutoma-copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.aiutoma-mcp-flex-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.aiutoma-mcp-flex-row-small {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    margin-top: 3px;
+}
+
+.aiutoma-mcp-safe-mode-url {
+    background: #fff;
+    padding: 10px;
+    font-weight: bold;
+    overflow-x: auto;
+}
+
+.aiutoma-mcp-safe-mode-url a {
+    text-decoration: none;
+}
+
+/* Prompt Credential Customizer */
+.aiutoma-prompt-customizer {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-left: 4px solid #2271b1;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    padding: 15px 20px;
+    margin: 20px 0 15px;
+}
+
+.aiutoma-prompt-customizer h4 {
+    margin: 0 0 6px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.aiutoma-prompt-customizer .aiutoma-customizer-grid {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-top: 10px;
+}
+
+.aiutoma-prompt-customizer .aiutoma-customizer-col-user {
+    flex: 1;
+    min-width: 200px;
+}
+
+.aiutoma-prompt-customizer .aiutoma-customizer-col-pass {
+    flex: 1.5;
+    min-width: 260px;
+}
+
+.aiutoma-prompt-customizer .aiutoma-customizer-col-btn {
+    padding-bottom: 2px;
+}
+
+.aiutoma-prompt-customizer .aiutoma-pass-input-wrap {
+    display: flex;
+    gap: 5px;
+    position: relative;
+}
+
+.aiutoma-prompt-customizer #aiutoma_prompt_clear_pass {
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 8px;
+}
+
