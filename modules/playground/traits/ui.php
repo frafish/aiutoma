@@ -6,6 +6,49 @@ if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
 trait Ui
 {
+    public static function get_allowed_chat_html()
+    {
+        $allowed = wp_kses_allowed_html('post');
+        $allowed['button'] = array_merge($allowed['button'] ?? [], [
+            'type' => true,
+            'class' => true,
+            'id' => true,
+            'title' => true,
+            'style' => true,
+            'disabled' => true,
+            'data-backup-id' => true,
+            'data-text' => true,
+        ]);
+        $allowed['details'] = array_merge($allowed['details'] ?? [], [
+            'class' => true,
+            'open' => true,
+            'style' => true,
+        ]);
+        $allowed['summary'] = array_merge($allowed['summary'] ?? [], [
+            'class' => true,
+            'style' => true,
+        ]);
+        $allowed['textarea'] = array_merge($allowed['textarea'] ?? [], [
+            'class' => true,
+            'id' => true,
+            'style' => true,
+            'readonly' => true,
+        ]);
+        $allowed['span'] = array_merge($allowed['span'] ?? [], [
+            'class' => true,
+            'id' => true,
+            'style' => true,
+            'title' => true,
+        ]);
+        $allowed['div'] = array_merge($allowed['div'] ?? [], [
+            'class' => true,
+            'id' => true,
+            'style' => true,
+            'title' => true,
+        ]);
+        return $allowed;
+    }
+
     public function aiutoma_page_html()
     {
         $is_ai_configured = false;
@@ -16,7 +59,7 @@ trait Ui
             $is_ai_configured = true;
         }
 
-        $channel = get_option('aiutoma_gemini_api_channel', get_option('wizard_blocks_gemini_api_channel', 'v1beta'));
+        $channel = get_option('aiutoma_gemini_api_channel', 'v1beta');
 ?>
         <div class="wrap">
             <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
@@ -60,7 +103,7 @@ trait Ui
                             }
                         }
                         ?>
-                        <div id="aiutoma-playground-chat"><?php echo wp_kses_post($chat_html); ?></div>
+                        <div id="aiutoma-playground-chat"><?php echo wp_kses($chat_html, static::get_allowed_chat_html()); ?></div>
                         <button type="button" class="toggle-distraction-free" title="<?php esc_attr_e('Toggle full screen', 'aiutoma'); ?>">
                             <span class="dashicons dashicons-fullscreen-alt"></span>
                         </button>
@@ -125,7 +168,7 @@ trait Ui
                             <div class="aiutoma-context-col">
                                 <label for="aiutoma-system-info-context">
                                     <strong><?php esc_html_e('System Info', 'aiutoma'); ?></strong>
-                                    <input type="checkbox" id="aiutoma-include-system-info" value="1" checked style="margin-left:5px; margin-top:-2px;">
+                                    <input type="checkbox" id="aiutoma-include-system-info" value="1" style="margin-left:5px; margin-top:-2px;">
                                     <span style="font-size:11px; font-weight:normal;"><?php esc_html_e('Pass with prompt', 'aiutoma'); ?></span>
                                 </label>
                                 <textarea id="aiutoma-system-info-context" class="aiutoma-context-textarea" readonly><?php echo esc_textarea($this->get_environment_details()); ?></textarea>
@@ -464,47 +507,13 @@ trait Ui
                 </div>
             <?php endif; ?>
 
-            <?php if (apply_filters('aiutoma_enable_safe_mode_ui', false)) : ?>
-            <div class="card aiutoma-safemode-card" style="display: none;">
-                <details>
-                    <summary class="aiutoma-card-summary-wrap">
-                        <h2>
-                            <span class="dashicons dashicons-shield"></span>
-                            <?php esc_html_e('Safe Mode', 'aiutoma'); ?>
-                        </h2>
-                    </summary>
-                    <div class="aiutoma-safemode-info" style="padding: 0 15px 15px 15px;">
-                        <p><?php esc_html_e('The Playground UI runs in a strictly isolated environment (Safe Mode). All other plugins and the active theme are temporarily disabled on this page to ensure maximum stability and prevent third-party fatal errors from crashing the chat.', 'aiutoma'); ?></p>
-                        <p><strong><?php esc_html_e('AI Auto-Recovery:', 'aiutoma'); ?></strong> <?php esc_html_e('By default, the AI executes tasks with ALL plugins loaded, so it can access WooCommerce, WPML, etc. freely. If a third-party plugin causes a Fatal Error (Error 500) during execution, the system will automatically enforce Strict Safe Mode on the AI to recover without breaking the chat.', 'aiutoma'); ?></p>
-                        <p><strong><?php esc_html_e('Post-Task Verification:', 'aiutoma'); ?></strong> <?php esc_html_e('After every critical task (like editing PHP or Database), the system verifies the frontend. If the site is broken, it immediately alerts the AI to fix it or prompts you to rollback.', 'aiutoma'); ?></p>
-                        <div id="aiutoma-safemode-status-wrap" style="margin-top: 10px; padding: 10px; background: #f0f0f1; border-left: 4px solid #72aee6; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong><?php esc_html_e('Current AI Status:', 'aiutoma'); ?></strong> <span id="aiutoma-safemode-status"><?php echo apply_filters('aiutoma_is_safe_mode_active', false) ? esc_html__('Strict Safe Mode Enforced (.aiutoma_safe)', 'aiutoma') : esc_html__('Native (All Plugins Active)', 'aiutoma'); ?></span>
-                            </div>
-                        </div>
-                    </div>
-                </details>
-            </div>
-
             <?php
-            $safe_token = get_option('aiutoma_mcp_token');
-            if (empty($safe_token)) {
-                $safe_token = wp_generate_password(24, false);
-                update_option('aiutoma_mcp_token', $safe_token);
-            }
-            $playground_url = admin_url('admin.php?page=aiutoma');
-            $safe_mode_url = add_query_arg(['aiutoma_enforce_safe_mode' => '1', 'token' => $safe_token], wp_login_url($playground_url));
+            /**
+             * Fires at the bottom of the Playground sidebar panel.
+             * Used by developer companion plugins (like Aiutoma Dev) to render Safe Mode controls and emergency notices.
+             */
+            do_action('aiutoma_playground_sidebar_bottom');
             ?>
-            <div class="notice notice-error inline" style="margin-left: 0;">
-                <p><strong><?php esc_html_e('Emergency Safe Mode Login', 'aiutoma'); ?>:</strong> <?php esc_html_e('If a plugin or theme causes a fatal 500 error that locks you out of the WordPress admin, use this URL to safely log in with all plugins/themes disabled:', 'aiutoma'); ?></p>
-                <p style="background: #fff; padding: 10px; font-weight: bold; overflow-x: auto;">
-                    <a href="<?php echo esc_url($safe_mode_url); ?>" target="_blank" style="text-decoration: none;">
-                        <?php echo esc_url($safe_mode_url); ?>
-                    </a>
-                </p>
-                <p><em><?php esc_html_e('Save this URL somewhere safe. The unique token prevents bots from bypassing system protections (like Wordfence 2FA) by forcing safe mode.', 'aiutoma'); ?></em></p>
-            </div>
-            <?php endif; ?>
         </div>
 <?php
     }
@@ -559,6 +568,7 @@ trait Ui
             $session_conv_id = null;
             $session_prompts = [];
             $session_messages = [];
+            $session_context = [];
             if (isset($_GET['session_id'])) {
                 $session_id = sanitize_file_name(wp_unslash($_GET['session_id']));
                 $file_path = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/logs/sessions/' . $session_id . '.json';
@@ -568,12 +578,14 @@ trait Ui
                         $session_conv_id = !empty($session_data['id']) ? $session_data['id'] : (!empty($session_data['conversation_id']) ? $session_data['conversation_id'] : null);
                         $session_prompts = empty($session_data['session_prompts']) ? [] : $session_data['session_prompts'];
                         $session_messages = empty($session_data['messages']) ? [] : $session_data['messages'];
+                        $session_context = empty($session_data['context']) ? [] : $session_data['context'];
                     }
                 }
             }
             $session_script = 'window.aiutomaCurrentConversationId = ' . wp_json_encode($session_conv_id) . ';' .
                 'window.aiutomaSessionPrompts = ' . wp_json_encode($session_prompts) . ';' .
-                'window.aiutomaSessionMessages = ' . wp_json_encode($session_messages) . ';';
+                'window.aiutomaSessionMessages = ' . wp_json_encode($session_messages) . ';' .
+                'window.aiutomaSessionContext = ' . wp_json_encode($session_context) . ';';
             wp_add_inline_script('aiutoma-playground-script', $session_script, 'before');
 
             // Enqueue native WordPress media uploader

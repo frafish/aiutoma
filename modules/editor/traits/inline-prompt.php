@@ -3,7 +3,11 @@ namespace Aiutoma\Modules\Editor\Traits;
 if ( ! defined( 'ABSPATH' ) ) exit;
 trait InlinePrompt {
     public function register_inline_prompt_hooks() {
-        add_action('init', [$this, 'register_inline_prompt_block']);
+        if (did_action('init')) {
+            $this->register_inline_prompt_block();
+        } else {
+            add_action('init', [$this, 'register_inline_prompt_block']);
+        }
     }
 
     public function register_inline_prompt_block() {

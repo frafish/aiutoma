@@ -11,7 +11,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    /*overflow: hidden;*/
     transition: all 0.3s ease;
 }
 
@@ -61,6 +61,27 @@
     font-size: 14px;
 }
 
+#aiutoma-chatbot:not(.aiutoma-chatbot-closed) .aiutoma-chatbot-ai-badge {
+    display: none;
+}
+.aiutoma-chatbot-ai-badge {
+    display: inline-block;
+    background: red;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    vertical-align: middle;
+    line-height: 1;
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
 #aiutoma-chatbot-body {
     display: flex;
     flex-direction: column;
@@ -93,13 +114,29 @@
     opacity: 0.7;
 }
 
-.aiutoma-chatbot-sys,
 .aiutoma-chatbot-ai {
     background: #fff;
     border: 1px solid #ddd;
     color: #333;
     align-self: flex-start;
     padding-bottom: 24px;
+}
+
+.aiutoma-chatbot-sys {
+    background: #f0f6fc;
+    border: 1px dashed #72aee6;
+    color: #1d2327;
+    align-self: center;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    font-style: italic;
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.aiutoma-chatbot-sys .aiutoma-chatbot-author {
+    display: none;
 }
 
 .aiutoma-chatbot-user {
@@ -357,30 +394,62 @@
 }
 
 #aiutoma-chatbot-gdpr-notice {
-    font-size: 10px;
-    color: #888;
-    text-align: center;
-    padding: 6px 10px;
-    line-height: 1.2;
-    background-color: #f9f9f9;
-    border-top: 1px solid #eee;
+    font-size: 11px;
+    color: #646970;
+    padding: 8px 12px;
+    line-height: 1.35;
+    background-color: #f6f7f7;
+    border-top: 1px solid #dcdcde;
 }
 
 .aiutoma-privacy-link {
+    color: #2271b1;
     text-decoration: underline;
+}
+
+.aiutoma-privacy-link:hover {
+    color: #135e96;
 }
 
 .aiutoma-chatbot-gdpr-label {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 6px;
     cursor: pointer;
-    margin-bottom: 5px;
+    margin: 0;
     text-align: left;
+    transition: color 0.2s ease;
+}
+
+.aiutoma-chatbot-gdpr-label.aiutoma-gdpr-error {
+    color: #d63638 !important;
+    font-weight: 500;
 }
 
 #aiutoma-chatbot-gdpr-consent {
-    margin: 0;
+    margin: 2px 0 0 0;
     flex-shrink: 0;
+    cursor: pointer;
+}
+
+.aiutoma-chatbot-disclaimer {
+    font-size: 10px;
+    color: #646970;
+    text-align: center;
+    padding: 6px 10px;
+    line-height: 1.3;
+    background-color: #fff;
+    border-top: 1px solid #f0f0f1;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.aiutoma-chatbot-disclaimer a {
+    color: #2271b1;
+    text-decoration: underline;
+}
+
+.aiutoma-chatbot-disclaimer a:hover {
+    color: #135e96;
 }

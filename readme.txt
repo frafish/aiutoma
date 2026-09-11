@@ -55,8 +55,8 @@ Keep a perfect audit trail. Provide external agents (like Zapier, Make, or custo
 #### 11. 📚 RAG Knowledge Base
 Give your AI perfect memory. Aiutoma automatically syncs your posts, WooCommerce products, and documentation into a local vector database so it always knows your exact inventory and content, ensuring hyper-accurate responses.
 
-#### 12. 💬 Smart Frontend Chatbot
-Empower your visitors. Deploy a beautiful, lightning-fast chat widget powered by your own site data to provide instant customer support, smart WooCommerce product recommendations, and lead generation on autopilot.
+#### 12. 💬 Smart Frontend Chatbot (EU AI Act Ready)
+Empower your visitors with total legal peace of mind. Deploy a sleek, lightning-fast chat widget powered by your own site data to provide instant customer support, smart WooCommerce recommendations, and lead generation on autopilot. Fully compliant with EU AI Act (Art. 50) transparency requirements, featuring permanent AI badges, accuracy disclaimers, seamless operator takeover, and GDPR consent.
 
 #### 13. 🛠️ Automated Dependency Management
 Keep your system secure and up-to-date effortlessly. Aiutoma features a robust, one-click interface for automating the installation and updates of complex external libraries (like PDF generators and device detectors) directly from official sources, completely hands-free.
@@ -67,6 +67,14 @@ To function properly, Aiutoma sends specific data to the third-party AI provider
 *   **Data Transmitted:** When you use the Playground, Chatbot, or Editor Agent, the text of your prompts, selected post content, and relevant system context (like basic site configurations or schema) are sent to the AI provider to generate a response.
 *   **User Consent:** No data is transmitted passively. Data is only sent when an explicit action is taken (e.g., clicking "Send" in the chat, running a translation, or executing a task).
 *   **Data Protection:** We do not harvest, store, or sell your data. Aiutoma communicates directly between your WordPress server and the AI API. Please refer to the privacy policy of your chosen AI provider (e.g., [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy)) to understand how they handle the transmitted data.
+
+== EU AI Act (Regulation (EU) 2024/1689) Compliance ==
+
+Aiutoma is engineered to keep website owners fully compliant as AI deployers under European Union regulations:
+*   **Limited Risk Profile:** Aiutoma strictly operates within the Limited Risk category. It does not engage in prohibited practices (Art. 5) or high-risk classification tasks (Art. 6 / Annex III).
+*   **Article 50 Transparency Obligations:** The Frontend Chatbot ensures natural persons are clearly informed they are interacting with an AI system through visible header badges, explicit AI greetings, and persistent accuracy disclaimers.
+*   **Human-in-the-Loop Handover:** Provides clear real-time system notices when a human operator joins or leaves a conversation.
+*   **Human Editorial Oversight:** Content generated in the Gutenberg editor and Playground requires explicit human review and publication (Art. 50(4)).
 
 == External services ==
 
@@ -225,6 +233,9 @@ In compliance with WordPress.org Guideline 4 (Code must be mostly human-readable
 
 = Is Aiutoma safe to use? =
 Yes. Aiutoma operates with strict boundaries. It cannot modify WordPress core files. All sensitive database operations or options updates require administrator confirmation and offer instant rollback states.
+
+= Does Aiutoma comply with the EU AI Act? =
+Yes! Aiutoma is designed to satisfy the transparency requirements of the EU AI Act (Regulation (EU) 2024/1689, Article 50). The Frontend Chatbot prominently notifies users that they are interacting with an AI system, displays permanent accuracy disclaimers, clearly identifies when a human operator takes over, and provides direct links to your site's Privacy Policy.
 
 = Can I run custom PHP scripts or modify theme/plugin files? =
 For maximum security and 100% compliance with WordPress.org guidelines, the core Aiutoma plugin does not execute arbitrary PHP code. If you require advanced developer tools (PHP execution, file modification, WP-CLI), simply activate the official companion "Aiutoma Dev".

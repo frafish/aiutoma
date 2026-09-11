@@ -89,6 +89,13 @@ Style variations are JSON files under `styles/`. Note: once a user picks a style
 Read:
 - `references/style-variations.md`
 
+### 7) WordPress Design System (WPDS) & Token Integration
+
+Align theme presets, spacing scales, and custom editor controls with official WPDS primitives and `@wordpress/components`.
+
+Read:
+- `references/wordpress-design-system.md`
+
 ## Verification
 
 - Site Editor reflects changes where expected (Styles UI, templates, patterns).

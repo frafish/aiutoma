@@ -643,10 +643,10 @@ jQuery(document).ready(function ($) {
             });
         }, 1000);
     }
-});
 
-    if ($.fn.select2) {
+    if (aiutomaWpmlData.isWpmlPage && $.fn && $.fn.select2) {
         $('#aiutoma_wpml_model').select2({ width: '300px' });
         $('#aiutoma_wpml_fallback_models').select2({ width: '300px' });
     }
+});
 

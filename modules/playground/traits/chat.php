@@ -190,9 +190,43 @@ trait Chat {
                 $permanent_info = get_option('aiutoma_permanent_context', '');
             }
             
+            // Track and preserve session settings across multi-step tool turns
+            $session_meta_key = !empty($conversation_id) ? 'aiutoma_session_meta_' . sanitize_key($conversation_id) : null;
+            $session_meta = $session_meta_key ? get_transient($session_meta_key) : false;
+            if (!is_array($session_meta)) {
+                $session_meta = [];
+            }
+
+            if (isset($params['enabled_abilities'])) {
+                $session_meta['enabled_abilities'] = $params['enabled_abilities'];
+            } elseif (isset($session_meta['enabled_abilities'])) {
+                $params['enabled_abilities'] = $session_meta['enabled_abilities'];
+            }
+
+            if (isset($params['enable_tools'])) {
+                $session_meta['enable_tools'] = (bool) $params['enable_tools'];
+            } elseif (isset($session_meta['enable_tools'])) {
+                $params['enable_tools'] = $session_meta['enable_tools'];
+            }
+
+            if (isset($params['enable_skills'])) {
+                $session_meta['enable_skills'] = (bool) $params['enable_skills'];
+            } elseif (isset($session_meta['enable_skills'])) {
+                $params['enable_skills'] = $session_meta['enable_skills'];
+            }
+
+            if (isset($params['enabled_skills'])) {
+                $session_meta['enabled_skills'] = $params['enabled_skills'];
+            } elseif (isset($session_meta['enabled_skills'])) {
+                $params['enabled_skills'] = $session_meta['enabled_skills'];
+            }
+
+            if ($session_meta_key) {
+                set_transient($session_meta_key, $session_meta, 3600);
+            }
+            
             $abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
             $abilities = apply_filters('aiutoma/abilities', $abilities);
-            $abilities = apply_filters('wizard_blocks_ai_abilities', $abilities);
             
             if (isset($params['enable_tools']) && !$params['enable_tools']) {
                 $abilities = [];
@@ -200,6 +234,12 @@ trait Chat {
                 $enabled_map = array_flip($params['enabled_abilities']);
                 $abilities = array_filter($abilities, function($ability) use ($enabled_map) {
                     return isset($enabled_map[$ability->get_name()]);
+                });
+            } else {
+                // By default, expose only the meta dispatcher ability to prevent massive prompt bloat (>50,000 tokens)
+                $default_map = ['aiutoma/abilities' => 0];
+                $abilities = array_filter($abilities, function($ability) use ($default_map) {
+                    return isset($default_map[$ability->get_name()]);
                 });
             }
 
@@ -227,9 +267,9 @@ trait Chat {
                 . "To optimize token usage, you MUST provide extremely concise and direct answers. Avoid unnecessary pleasantries or long explanations. "
                 . "You are empowered to act autonomously directly within the WordPress instance using your tools when needed. "
                 . "Your capabilities include: 1) Manage and maintain the site (update WP core, install/remove plugins/themes, manage user roles). 2) Create and organize content (add/edit/delete posts/pages, categories, tags, images, comments). 3) Run WooCommerce stores (manage products, orders, customers). 4) Improve performance and security (identify speed issues, audit vulnerabilities, troubleshoot conflicts). 5) Customize and enhance the site (design guidance, snippets, SEO). 6) Adjust technical settings (permalinks, options, multilanguage). "
-                . "You have full access to structured WordPress Core functions and plugin APIs (such as WooCommerce, Posts, Options, Media, Users). When performing actions, querying data, or manipulating the environment, use your structured abilities (like manage-posts, manage-options, manage-system) to leverage native WordPress APIs safely. "
+                . "You have full access to structured WordPress Core functions and plugin APIs (such as WooCommerce, Posts, Options, Media, Users, Full Site Editing). All WordPress system abilities (e.g. `aiutoma/page-snapshot`, `gutenberg/manage-templates`, `gutenberg/wp-patterns`, `aiutoma/manage-posts`, `aiutoma/manage-options`, `aiutoma/manage-system`, `aiutoma/skills`, WooCommerce, WPML) can be discovered, inspected, and executed dynamically on-demand via the `aiutoma/abilities` ability. Call `aiutoma/abilities` with action 'list' (pass 'search' or 'category' to find specific tools), 'get' to inspect parameter schemas, or 'execute' with 'ability_name' and 'ability_input' to run any ability safely. When querying or counting items (like products or posts), always check the returned `total_items` or `total` count in the response rather than paginating through all records. For WooCommerce, filter products with `woocommerce/products-query` (supports `product_type_alias`: 'physical', 'virtual', 'digital', 'affiliate', 'grouped', or 'variable') and manage or list variations with `woocommerce/manage-variations` (pass `product_id` and optional `action`: 'list'). "
                 . $dev_tool_instruction
-                . "You are an expert in the WordPress ecosystem, its hooks, filters, and best practices."
+                . "You are an expert in the WordPress ecosystem, its hooks, filters, and best practices. Specialized architecture guidelines and best practices (e.g. WooCommerce, Interactivity API, Block Themes, Performance Tuning, Blueprint, Playground, Hooks & Lifecycle) are available on-demand via the `aiutoma/skills` ability. Call `aiutoma/skills` with action 'list' to see available topics or 'read' with a skill_id to retrieve exact guidelines when needed."
                 . "\n\nCRITICAL RULE FOR USING ABILITIES/TOOLS:\n"
                 . "You MUST ONLY call ONE tool per response! DO NOT execute multiple tools in parallel in a single response. "
                 . "When given a task, you must decompose it into multiple smaller actions (divide et impera). "
@@ -240,14 +280,16 @@ trait Chat {
                 . "IMPORTANT: If the user asked you to modify, append, or generate content for their editor, you MUST include the required ```gutenberg-insert or ```gutenberg-replace code blocks inside your FINAL confirmation response. The editor is ONLY updated if you explicitly output these code blocks in your final turn.\n"
                 . "CRITICAL: You MUST NEVER edit WordPress core files.\n"
                 . $env_info;
-            $enabled_skills = null;
-            if (isset($params['enable_skills']) && !$params['enable_skills']) {
-                $enabled_skills = [];
-            } elseif (isset($params['enabled_skills']) && is_array($params['enabled_skills'])) {
-                $enabled_skills = $params['enabled_skills'];
+            $enabled_skills = [];
+            if (!empty($params['enable_skills'])) {
+                if (isset($params['enabled_skills']) && is_array($params['enabled_skills'])) {
+                    $enabled_skills = $params['enabled_skills'];
+                }
             }
             
-            $system_instruction .= \Aiutoma\Modules\Ai\Ai::instance()->get_ai_skills($enabled_skills);
+            if (!empty($enabled_skills)) {
+                $system_instruction .= \Aiutoma\Modules\Ai\Ai::instance()->get_ai_skills($enabled_skills);
+            }
 
             $is_playground = in_array($object_type, ['toplevel_page_aiutoma']);
             if (!$is_playground && !empty($object_type)) {
@@ -488,6 +530,7 @@ trait Chat {
                                     $name,
                                     $fr_response
                                 );
+                                $part = new \WordPress\AiClient\Messages\DTO\MessagePart($fr);
                             }
                             
                             if ($backup_id && !isset($fr_response['backup_id'])) {
@@ -813,7 +856,6 @@ trait Chat {
     public function handle_get_abilities(\WP_REST_Request $request) {
         $abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
         $abilities = apply_filters('aiutoma/abilities', $abilities);
-        $abilities = apply_filters('wizard_blocks_ai_abilities', $abilities);
         
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';

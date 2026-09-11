@@ -15,11 +15,7 @@ trait Ui {
         if (isset($_REQUEST['elementor-preview']) && $_REQUEST['elementor-preview']) return;
         if (isset($_REQUEST['action']) && $_REQUEST['action'] === 'elementor') return;
 
-        if (!get_option('aiutoma_chatbot_enabled', 0)) return;
-
-        $upload_dir = wp_upload_dir();
-        $db_path = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/rag.sqlite';
-        if (!file_exists($db_path)) return;
+        if (!get_option('aiutoma_chatbot_enabled', 1)) return;
 
         wp_enqueue_style('dashicons');
         wp_enqueue_style('aiutoma-chatbot-style', AIUTOMA_URL . 'modules/chatbot/assets/css/chatbot.css', [], '1.0.3');
@@ -70,11 +66,7 @@ trait Ui {
         if (isset($_REQUEST['elementor-preview']) && $_REQUEST['elementor-preview']) return;
         if (isset($_REQUEST['action']) && $_REQUEST['action'] === 'elementor') return;
 
-        if (!get_option('aiutoma_chatbot_enabled', 0)) return;
-
-        $upload_dir = wp_upload_dir();
-        $db_path = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/rag.sqlite';
-        if (!file_exists($db_path)) return;
+        if (!get_option('aiutoma_chatbot_enabled', 1)) return;
         
         $icon = esc_attr(get_option('aiutoma_chatbot_icon', 'dashicons-format-chat'));
         $color = esc_attr(get_option('aiutoma_chatbot_color', '#2271b1'));
@@ -84,9 +76,19 @@ trait Ui {
         $chatbot_name = apply_filters('wpml_translate_single_string', $chatbot_name, 'aiutoma', 'chatbot_name');
         $chatbot_name = esc_html($chatbot_name);
 
-        $greeting = get_option('aiutoma_chatbot_greeting', 'Hello! How can I help you today?');
+        $show_ai_badge = get_option('aiutoma_chatbot_show_ai_badge', 1);
+
+        $default_greeting = __('Hello! I am an AI assistant for this website. How can I help you today?', 'aiutoma');
+        $greeting = get_option('aiutoma_chatbot_greeting', $default_greeting);
         $greeting = apply_filters('wpml_translate_single_string', $greeting, 'aiutoma', 'chatbot_greeting');
         $greeting = esc_html($greeting);
+
+        $default_disclaimer = __('AI assistant • Responses may contain inaccuracies.', 'aiutoma');
+        $disclaimer = get_option('aiutoma_chatbot_disclaimer_text', $default_disclaimer);
+        $disclaimer = apply_filters('wpml_translate_single_string', $disclaimer, 'aiutoma', 'chatbot_disclaimer_text');
+
+        $show_privacy_link = get_option('aiutoma_chatbot_show_privacy_link', 1);
+        $privacy_url = ($show_privacy_link && function_exists('get_privacy_policy_url')) ? get_privacy_policy_url() : '';
         
         $pos_class = $position === 'bottom-left' ? 'aiutoma-pos-bottom-left' : 'aiutoma-pos-bottom-right';
         ?>
@@ -95,6 +97,9 @@ trait Ui {
                 <span class="dashicons <?php echo esc_attr($icon); ?>"></span>
                 <?php if (!empty($chatbot_name)): ?>
                     <span class="aiutoma-chatbot-title-text"><?php echo esc_html($chatbot_name); ?></span>
+                <?php endif; ?>
+                <?php if ($show_ai_badge): ?>
+                    <span class="aiutoma-chatbot-ai-badge" title="<?php esc_attr_e('Artificial Intelligence System', 'aiutoma'); ?>"><?php esc_html_e('AI', 'aiutoma'); ?></span>
                 <?php endif; ?>
                 <button id="aiutoma-chatbot-reset" title="<?php esc_attr_e('Reset Chat', 'aiutoma'); ?>"><span class="dashicons dashicons-update-alt"></span></button>
                 <button id="aiutoma-chatbot-toggle"><span class="dashicons dashicons-arrow-up-alt2"></span></button>
@@ -125,21 +130,43 @@ trait Ui {
                     </div>
                     <button id="aiutoma-chatbot-send" class="button button-primary"><span class="dashicons dashicons-controls-play"></span></button>
                 </div>
-                <?php if (get_option('aiutoma_chatbot_gdpr_required', 1)): ?>
+                <?php if (!is_user_logged_in() && get_option('aiutoma_chatbot_gdpr_required', 1)): ?>
                 <div id="aiutoma-chatbot-gdpr-notice">
                     <?php 
-                    $default_gdpr_text = __('By chatting, you agree to our processing of conversation logs to assist with your request.', 'aiutoma');
-                    $custom_gdpr_text = get_option('aiutoma_chatbot_gdpr_text', $default_gdpr_text);
-                    $custom_gdpr_text = apply_filters('wpml_translate_single_string', $custom_gdpr_text, 'aiutoma', 'chatbot_gdpr_text');
-                    
-                    if (!is_user_logged_in() && get_option('aiutoma_chatbot_track_sessions', 0)) {
-                        echo '<label class="aiutoma-chatbot-gdpr-label">';
-                        echo '<input type="checkbox" id="aiutoma-chatbot-gdpr-consent">';
-                        echo '<span>' . wp_kses_post($custom_gdpr_text) . '</span></label>';
+                    $privacy_url = function_exists('get_privacy_policy_url') ? get_privacy_policy_url() : '';
+                    $privacy_link_html = !empty($privacy_url) 
+                        ? '<a href="' . esc_url($privacy_url) . '" target="_blank" rel="noopener noreferrer" class="aiutoma-privacy-link">' . esc_html__('Privacy Policy', 'aiutoma') . '</a>'
+                        : esc_html__('Privacy Policy', 'aiutoma');
+
+                    $default_gdpr_text = sprintf(
+                        /* translators: %s: Privacy Policy link */
+                        __('I agree to the processing of conversation data in accordance with the %s.', 'aiutoma'),
+                        $privacy_link_html
+                    );
+
+                    $custom_gdpr_text = get_option('aiutoma_chatbot_gdpr_text', '');
+                    if (empty($custom_gdpr_text) || $custom_gdpr_text === 'By chatting, you agree to our processing of conversation logs to assist with your request.' || $custom_gdpr_text === 'By chatting, you agree to our processing of conversation logs to assist with your request. See our Privacy for your data rights.') {
+                        $gdpr_text = $default_gdpr_text;
                     } else {
-                        echo wp_kses_post($custom_gdpr_text);
+                        $gdpr_text = apply_filters('wpml_translate_single_string', $custom_gdpr_text, 'aiutoma', 'chatbot_gdpr_text');
+                        if (!empty($privacy_url) && strpos($gdpr_text, '<a') === false) {
+                            if (stripos($gdpr_text, 'privacy') !== false) {
+                                $gdpr_text = preg_replace('/privacy(\s+policy)?/i', $privacy_link_html, $gdpr_text, 1);
+                            } else {
+                                $gdpr_text .= ' (' . $privacy_link_html . ')';
+                            }
+                        }
                     }
                     ?>
+                    <label class="aiutoma-chatbot-gdpr-label">
+                        <input type="checkbox" id="aiutoma-chatbot-gdpr-consent">
+                        <span><?php echo wp_kses_post($gdpr_text); ?></span>
+                    </label>
+                </div>
+                <?php endif; ?>
+                <?php if (!empty($disclaimer)): ?>
+                <div id="aiutoma-chatbot-disclaimer" class="aiutoma-chatbot-disclaimer">
+                    <span><?php echo esc_html($disclaimer); ?><?php if (!empty($privacy_url)): ?> • <a href="<?php echo esc_url($privacy_url); ?>" target="_blank" class="aiutoma-privacy-link"><?php esc_html_e('Privacy', 'aiutoma'); ?></a><?php endif; ?></span>
                 </div>
                 <?php endif; ?>
             </div>

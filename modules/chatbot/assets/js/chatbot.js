@@ -24,6 +24,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     } catch(e) {}
 
+    function updateOperatorMode(isManual) {
+        const disclaimer = document.getElementById('aiutoma-chatbot-disclaimer') || document.querySelector('.aiutoma-chatbot-disclaimer');
+        const aiBadge = document.querySelector('.aiutoma-chatbot-ai-badge');
+        
+        if (isManual) {
+            if (disclaimer) disclaimer.style.display = 'none';
+            if (aiBadge) aiBadge.style.display = 'none';
+            chatbot.setAttribute('data-operator-mode', '1');
+        } else {
+            if (disclaimer) disclaimer.style.display = '';
+            if (aiBadge) aiBadge.style.display = '';
+            chatbot.removeAttribute('data-operator-mode');
+        }
+    }
+
     function renderHistory() {
         if (chatHistory.length > 0) {
             const greeting = messagesArea.firstElementChild;
@@ -101,6 +116,23 @@ document.addEventListener('DOMContentLoaded', function() {
             if (gdprNotice) {
                 gdprNotice.style.display = 'none';
             }
+
+            let isManual = localStorage.getItem('aiutoma_chatbot_manual_mode') === '1';
+            for (let i = chatHistory.length - 1; i >= 0; i--) {
+                if (chatHistory[i].role === 'sys') {
+                    const txt = (chatHistory[i].text || '').toLowerCase();
+                    if (txt.includes('operator') && (txt.includes('joined') || txt.includes('human'))) {
+                        isManual = true;
+                        break;
+                    } else if (txt.includes('left') || txt.includes('active again')) {
+                        isManual = false;
+                        break;
+                    }
+                }
+            }
+            updateOperatorMode(isManual);
+        } else {
+            updateOperatorMode(false);
         }
     }
     renderHistory();
@@ -109,6 +141,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (chatbot.classList.contains('aiutoma-chatbot-closed')) {
             chatbot.classList.remove('aiutoma-chatbot-closed');
             toggleBtn.innerHTML = '<span class="dashicons dashicons-arrow-down-alt2"></span>';
+            if (typeof pollServer === 'function') {
+                pollServer();
+            }
             setTimeout(() => {
                 promptInput.focus();
                 messagesArea.scrollTop = messagesArea.scrollHeight;
@@ -222,11 +257,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const isNoticeVisible = noticeBox && noticeBox.style.display !== 'none';
             
             if (isNoticeVisible && consentBox && !consentBox.checked) {
-                consentBox.parentElement.style.color = 'red';
+                if (consentBox.parentElement) consentBox.parentElement.classList.add('aiutoma-gdpr-error');
                 consentBox.focus();
                 return;
             } else if (consentBox) {
-                consentBox.parentElement.style.color = '';
+                if (consentBox.parentElement) consentBox.parentElement.classList.remove('aiutoma-gdpr-error');
             }
 
             const emailVal = emailInput.value.trim();
@@ -239,8 +274,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     promptInput.value = "My email is " + emailVal;
                 }
                 sendMessage();
-            } else {
-                emailInput.style.borderColor = 'red';
             }
         });
     }
@@ -259,6 +292,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 messagesArea.innerHTML = '';
                 if (greeting) {
                     messagesArea.appendChild(greeting);
+                }
+                const noticeBox = document.getElementById('aiutoma-chatbot-gdpr-notice');
+                if (noticeBox) {
+                    noticeBox.style.display = 'block';
+                }
+                const consentBox = document.getElementById('aiutoma-chatbot-gdpr-consent');
+                if (consentBox) {
+                    consentBox.checked = false;
+                    if (consentBox.parentElement) {
+                        consentBox.parentElement.classList.remove('aiutoma-gdpr-error');
+                    }
                 }
             }
         });
@@ -295,6 +339,17 @@ document.addEventListener('DOMContentLoaded', function() {
             contentDiv.innerText = text;
         }
         div.appendChild(contentDiv);
+
+        if (role === 'sys') {
+            const lower = (text || '').toLowerCase();
+            if (lower.includes('operator') && (lower.includes('joined') || lower.includes('human'))) {
+                updateOperatorMode(true);
+                localStorage.setItem('aiutoma_chatbot_manual_mode', '1');
+            } else if (lower.includes('left') || lower.includes('active again')) {
+                updateOperatorMode(false);
+                localStorage.setItem('aiutoma_chatbot_manual_mode', '0');
+            }
+        }
         
         if (role === 'ai' && 'speechSynthesis' in window) {
             const speakBtn = document.createElement('button');
@@ -387,6 +442,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    const consentBox = document.getElementById('aiutoma-chatbot-gdpr-consent');
+    if (consentBox) {
+        consentBox.addEventListener('change', function() {
+            if (consentBox.checked && consentBox.parentElement) {
+                consentBox.parentElement.classList.remove('aiutoma-gdpr-error');
+                consentBox.parentElement.style.color = '';
+            }
+        });
+    }
+
     let messageQueue = [];
     let isProcessing = false;
 
@@ -399,11 +464,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const isNoticeVisible = noticeBox && noticeBox.style.display !== 'none';
         
         if (isNoticeVisible && consentBox && !consentBox.checked) {
-            consentBox.parentElement.style.color = 'red';
+            if (consentBox.parentElement) consentBox.parentElement.classList.add('aiutoma-gdpr-error');
             consentBox.focus();
             return;
         } else if (consentBox) {
-            consentBox.parentElement.style.color = '';
+            if (consentBox.parentElement) {
+                consentBox.parentElement.classList.remove('aiutoma-gdpr-error');
+                consentBox.parentElement.style.color = '';
+            }
             if (noticeBox) noticeBox.style.display = 'none';
         }
         
@@ -492,6 +560,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 lastPollTime = data.date_gmt;
             }
             
+            if (typeof data.manual_mode !== 'undefined') {
+                updateOperatorMode(data.manual_mode);
+                localStorage.setItem('aiutoma_chatbot_manual_mode', data.manual_mode ? '1' : '0');
+            }
+
             if (data.success && (data.reply || data.manual_mode)) {
                 if (data.reply) {
                     addMessage(data.reply, 'ai');
@@ -594,7 +667,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     let lastPollTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    setInterval(async () => {
+
+    async function pollServer() {
         if (!sessionId) return;
         const pollUrl = aiutomaChatbotData.rest_url + '/poll';
         try {
@@ -611,33 +685,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
             });
             const data = await response.json();
-            if (data.success && data.messages && data.messages.length > 0) {
-                data.messages.forEach(msg => {
-                    try {
-                        const stored = localStorage.getItem('aiutoma_chatbot_history');
-                        if (stored) {
-                            chatHistory = JSON.parse(stored);
-                        }
-                    } catch(e) {}
+            if (data.success) {
+                if (typeof data.manual_mode !== 'undefined') {
+                    updateOperatorMode(data.manual_mode);
+                    localStorage.setItem('aiutoma_chatbot_manual_mode', data.manual_mode ? '1' : '0');
+                }
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        try {
+                            const stored = localStorage.getItem('aiutoma_chatbot_history');
+                            if (stored) {
+                                chatHistory = JSON.parse(stored);
+                            }
+                        } catch(e) {}
 
-                    const isDuplicate = chatHistory.some(m => m.role === msg.role && m.text === msg.text);
-                                            
-                    if (!isDuplicate) {
-                        addMessage(msg.text, msg.role, true, msg.author);
-                        if (msg.role === 'ai') {
-                            const hint = document.getElementById('aiutoma-chatbot-email-hint');
-                            if (hint) {
-                                const hasEmail = chatHistory.some(m => m.role === 'user' && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(m.text));
-                                if (!hasEmail) {
-                                    hint.style.display = 'block';
+                        const isDuplicate = chatHistory.some(m => m.role === msg.role && m.text === msg.text);
+                                                
+                        if (!isDuplicate) {
+                            addMessage(msg.text, msg.role, true, msg.author);
+                            if (msg.role === 'ai') {
+                                const hint = document.getElementById('aiutoma-chatbot-email-hint');
+                                if (hint) {
+                                    const hasEmail = chatHistory.some(m => m.role === 'user' && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(m.text));
+                                    if (!hasEmail) {
+                                        hint.style.display = 'block';
+                                    }
                                 }
                             }
                         }
-                    }
-                    lastPollTime = msg.date_gmt;
-                });
+                        lastPollTime = msg.date_gmt;
+                    });
+                }
             }
         } catch(e) {}
-    }, 5000);
+    }
+
+    setInterval(pollServer, 5000);
 
 });

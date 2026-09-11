@@ -11,7 +11,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) { exit; }
 
 spl_autoload_register(static function (string $class): void {
-    $prefix = 'WordPress\\CloudflareAiProvider\\';
+    $prefix = 'Aiutoma\\CloudflareAiProvider\\';
     $baseDir = __DIR__ . '/';
 
     $len = strlen($prefix);

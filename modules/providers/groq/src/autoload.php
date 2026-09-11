@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) { exit; }
 
 
 spl_autoload_register(static function (string $class): void {
-    $prefix = 'WordPress\\GroqAiProvider\\';
+    $prefix = 'Aiutoma\\GroqAiProvider\\';
     $baseDir = __DIR__ . '/';
 
     $len = strlen($prefix);

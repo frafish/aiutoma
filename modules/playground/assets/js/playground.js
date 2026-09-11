@@ -163,14 +163,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
-
-        const toolHeader = e.target.closest('.aiutoma-tool-header-toggle');
-        if (toolHeader) {
-            const details = toolHeader.nextElementSibling;
-            if (details && details.classList.contains('aiutoma-tool-details')) {
-                details.style.display = (details.style.display === 'none' || details.style.display === '') ? 'block' : 'none';
-            }
-        }
     });
 
 
@@ -276,9 +268,12 @@ document.addEventListener('DOMContentLoaded', function () {
     window.aiutomaSessionPrompts = window.aiutomaSessionPrompts || [];
     window.aiutomaSessionMessages = window.aiutomaSessionMessages || [];
     window.aiutomaPromptQueue = window.aiutomaPromptQueue || [];
-    window.aiutomaCurrentConversationId = null;
+    window.aiutomaCurrentConversationId = window.aiutomaCurrentConversationId || null;
 
     const exportBtn = document.getElementById('aiutoma-export-session');
+    if (exportBtn && window.aiutomaSessionPrompts.length > 0) {
+        exportBtn.style.display = 'inline-block';
+    }
     const importBtn = document.getElementById('aiutoma-import-session');
     const importFile = document.getElementById('aiutoma-import-file');
     const toggleSafeModeBtn = document.getElementById('aiutoma-toggle-safe-mode');
@@ -357,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 friendlyName = friendlyName.replace(/\b\w/g, l => l.toUpperCase());
                             }
                         }
-                        let isChecked = (group === 'WordPress Core' || group === 'Aiutoma Engine' || group === 'Aiutoma');
+                        let isChecked = (ability.name === 'aiutoma/abilities');
 
                         html += '<label style="font-size: 11px; display: flex; align-items: flex-start; cursor: pointer;">';
                         html += '<input type="checkbox" class="aiutoma-ability-checkbox ' + groupClass + '" value="' + escapeHtml(ability.name) + '" ' + (isChecked ? 'checked' : '') + ' style="margin-top: 1px; margin-right: 5px;">';
@@ -540,7 +535,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fallback_models: fallbackModelsCheckbox ? fallbackModelsCheckbox.checked : false,
             enable_tools: enableAbilitiesToggle ? enableAbilitiesToggle.checked : true,
             enabled_abilities: selectedAbilities,
-            enable_skills: enableSkillsToggle ? enableSkillsToggle.checked : true,
+            enable_skills: enableSkillsToggle ? enableSkillsToggle.checked : false,
             enabled_skills: selectedSkills,
             system_info: document.getElementById('aiutoma-include-system-info') ? document.getElementById('aiutoma-include-system-info').checked : false,
             session_context: document.getElementById('aiutoma-session-context') ? document.getElementById('aiutoma-session-context').value : '',
@@ -1384,7 +1379,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                 let friendlyName = friendlyNames[t.name];
                                 if (!friendlyName) {
-                                    if (t.name.startsWith('wpab__')) {
+                                    if (t.name === 'aiutoma/abilities' || t.name === 'wpab__aiutoma__abilities' || t.name.endsWith('abilities')) {
+                                        if (t.args && t.args.action === 'execute' && t.args.ability_name) {
+                                            let targetName = t.args.ability_name;
+                                            let formattedTarget = targetName;
+                                            if (targetName.includes('/')) {
+                                                let [ns, ab] = targetName.split('/');
+                                                if (ns.toLowerCase() === 'woocommerce') ns = 'WooCommerce';
+                                                else ns = ns.charAt(0).toUpperCase() + ns.slice(1);
+                                                ab = ab.replace(/-/g, ' ').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                                formattedTarget = ns + ': ' + ab;
+                                            }
+                                            friendlyName = 'Ability: ' + formattedTarget;
+                                        } else if (t.args && t.args.action === 'list') {
+                                            friendlyName = 'Ability: Discover Tools' + (t.args.search ? ' ("' + t.args.search + '")' : '');
+                                        } else if (t.args && t.args.action === 'get') {
+                                            friendlyName = 'Ability: Inspect (' + (t.args.ability_name || '') + ')';
+                                        } else {
+                                            friendlyName = 'Aiutoma: Abilities';
+                                        }
+                                    } else if (t.name.startsWith('wpab__')) {
                                         let parts = t.name.split('__');
                                         if (parts.length >= 3) {
                                             let category = parts[1];
@@ -1412,13 +1426,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 header.innerHTML = '<span class="aiutoma-tool-icon" style="margin-right: 8px;">⚙️</span><strong>' + friendlyName + '</strong> <span title="Click to view details" class="aiutoma-tool-help">?</span>';
 
                                 const details = document.createElement('div');
-                                header.onclick = function (e) {
-                                    // Prevent other click listeners (like global ones) from interfering
-                                    e.preventDefault();
-                                    if (details) {
-                                        details.style.display = (details.style.display === 'none' || details.style.display === '') ? 'block' : 'none';
-                                    }
-                                };
                                 details.className = 'aiutoma-tool-details';
                                 details.style.cssText = 'display: ' + (isSensitive ? 'block' : 'none') + '; margin-top: 5px; padding: 8px; background: #eee; border-radius: 4px; font-family: monospace; font-size: 11px; overflow-x: auto; white-space: pre-wrap;';
 
@@ -1554,6 +1561,34 @@ document.addEventListener('DOMContentLoaded', function () {
                                 nextActiveNodes.push(toolNode);
                             });
 
+                            const getSessionPayload = () => {
+                                const enableAbilitiesToggle = document.getElementById('aiutoma-enable-abilities-toggle');
+                                const enable_tools = enableAbilitiesToggle ? enableAbilitiesToggle.checked : true;
+                                const selectedAbilities = [];
+                                if (enable_tools) {
+                                    document.querySelectorAll('.aiutoma-ability-checkbox:checked').forEach(cb => {
+                                        selectedAbilities.push(cb.value);
+                                    });
+                                }
+                                const enableSkillsToggle = document.getElementById('aiutoma-enable-skills-toggle');
+                                const enable_skills = enableSkillsToggle ? enableSkillsToggle.checked : false;
+                                const selectedSkills = [];
+                                if (enable_skills) {
+                                    document.querySelectorAll('.aiutoma-skill-checkbox:checked').forEach(cb => {
+                                        selectedSkills.push(cb.value);
+                                    });
+                                }
+                                return {
+                                    enable_tools: enable_tools,
+                                    enabled_abilities: selectedAbilities,
+                                    enable_skills: enable_skills,
+                                    enabled_skills: selectedSkills,
+                                    session_context: document.getElementById('aiutoma-session-context') ? document.getElementById('aiutoma-session-context').value : '',
+                                    permanent_context: document.getElementById('aiutoma-permanent-context') ? document.getElementById('aiutoma-permanent-context').value : '',
+                                    object_type: window.aiutomaSettings.objectType || ''
+                                };
+                            };
+
                             if (requiresApproval) {
                                 const approvalWrapper = document.createElement('div');
                                 approvalWrapper.style.cssText = 'margin-top: 10px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #ddd; padding-top: 10px;';
@@ -1576,12 +1611,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 const globalAutoApprove = document.getElementById('aiutoma-global-auto-approve');
                                 if (globalAutoApprove && globalAutoApprove.checked) {
                                     approvalWrapper.style.display = 'none';
-                                    await doStep({
+                                    await doStep(Object.assign({
                                         conversation_id: data.conversation_id,
                                         execute_tools: true,
                                         model: modelSelect ? modelSelect.value : '',
                                         fallback_models: fallbackModelsCheckbox ? fallbackModelsCheckbox.checked : false
-                                    }, window.aiutomaSettings.textAiThinking, nextActiveNodes);
+                                    }, getSessionPayload()), window.aiutomaSettings.textAiThinking, nextActiveNodes);
                                 } else {
                                     approveBtn.onclick = async () => {
                                         approveBtn.disabled = true;
@@ -1603,13 +1638,13 @@ document.addEventListener('DOMContentLoaded', function () {
                                             }
                                         });
 
-                                        await doStep({
+                                        await doStep(Object.assign({
                                             conversation_id: data.conversation_id,
                                             execute_tools: true,
                                             modified_tools: modified_tools,
                                             model: modelSelect ? modelSelect.value : '',
                                             fallback_models: fallbackModelsCheckbox ? fallbackModelsCheckbox.checked : false
-                                        }, window.aiutomaSettings.textAiThinking, nextActiveNodes);
+                                        }, getSessionPayload()), window.aiutomaSettings.textAiThinking, nextActiveNodes);
 
                                         approvalWrapper.style.display = 'none';
                                     };
@@ -1619,12 +1654,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                         cancelBtn.disabled = true;
                                         cancelBtn.innerText = 'Cancelled';
 
-                                        await doStep({
+                                        await doStep(Object.assign({
                                             conversation_id: data.conversation_id,
                                             cancel_tools: true,
                                             model: modelSelect ? modelSelect.value : '',
                                             fallback_models: fallbackModelsCheckbox ? fallbackModelsCheckbox.checked : false
-                                        }, window.aiutomaSettings.textAiThinking, nextActiveNodes);
+                                        }, getSessionPayload()), window.aiutomaSettings.textAiThinking, nextActiveNodes);
 
                                         approvalWrapper.style.display = 'none';
                                     };
@@ -1633,12 +1668,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 chatEl.appendChild(toolsWrapper);
                                 chatEl.scrollTop = chatEl.scrollHeight;
 
-                                await doStep({
+                                await doStep(Object.assign({
                                     conversation_id: data.conversation_id,
                                     execute_tools: true,
                                     model: modelSelect ? modelSelect.value : '',
                                     fallback_models: fallbackModelsCheckbox ? fallbackModelsCheckbox.checked : false
-                                }, window.aiutomaSettings.textAiThinking, nextActiveNodes);
+                                }, getSessionPayload()), window.aiutomaSettings.textAiThinking, nextActiveNodes);
                             }
                         } else {
                             let aiResponse = data.response || '';
@@ -1758,7 +1793,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const enableSkillsToggle = document.getElementById('aiutoma-enable-skills-toggle');
-            payload.enable_skills = enableSkillsToggle ? enableSkillsToggle.checked : true;
+            payload.enable_skills = enableSkillsToggle ? enableSkillsToggle.checked : false;
 
             if (payload.enable_skills) {
                 const selectedSkills = [];
@@ -1880,16 +1915,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Tool details toggle delegate
     document.addEventListener('click', function (e) {
-        let target = e.target;
-        while (target && target !== document) {
-            if (target.classList && target.classList.contains('aiutoma-tool-header-toggle')) {
-                const details = target.nextElementSibling;
-                if (details && details.classList.contains('aiutoma-tool-details')) {
-                    details.style.display = details.style.display === 'none' ? 'block' : 'none';
-                }
-                break;
+        const toolHeader = e.target.closest('.aiutoma-tool-header-toggle');
+        if (toolHeader) {
+            e.preventDefault();
+            const details = toolHeader.nextElementSibling;
+            if (details && details.classList.contains('aiutoma-tool-details')) {
+                const isHidden = window.getComputedStyle(details).display === 'none';
+                details.style.display = isHidden ? 'block' : 'none';
             }
-            target = target.parentNode;
         }
     });
 
@@ -1898,7 +1931,17 @@ document.addEventListener('DOMContentLoaded', function () {
         playgroundChatEl.addEventListener('click', function (e) {
             if (e.target.closest('.aiutoma-copy-btn')) {
                 const btn = e.target.closest('.aiutoma-copy-btn');
-                const textToCopy = btn.getAttribute('data-text');
+                let textToCopy = btn.getAttribute('data-text');
+                if (!textToCopy) {
+                    const aiMsg = btn.closest('.aiutoma-msg-ai');
+                    if (aiMsg) {
+                        const clone = aiMsg.cloneNode(true);
+                        const header = clone.querySelector('div');
+                        if (header) header.remove();
+                        textToCopy = clone.innerText.trim();
+                    }
+                }
+                textToCopy = textToCopy || '';
 
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(textToCopy).then(() => {
@@ -1930,7 +1973,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Token Estimator for Context
     function updateTokenEstimate() {
-        let baseWords = 0;
+        let contextWords = 0;
         let ragWords = 0;
 
         // Context textareas
@@ -1953,20 +1996,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (isRag) {
                         ragWords += ta.value.trim().split(/\s+/).length;
                     } else {
-                        baseWords += ta.value.trim().split(/\s+/).length;
+                        contextWords += ta.value.trim().split(/\s+/).length;
                     }
                 }
             }
         });
 
-        // Prompt textarea
-        const promptEl = document.getElementById('aiutoma-playground-prompt');
-        if (promptEl && promptEl.value.trim() !== '') {
-            baseWords += promptEl.value.trim().split(/\s+/).length;
-        }
-
-        const baseEstimate = Math.ceil(baseWords / 0.75);
-        const ragEstimate = Math.ceil(ragWords / 0.75);
+        const contextEstimate = contextWords > 0 ? Math.ceil(contextWords / 0.75) : 0;
+        const ragEstimate = ragWords > 0 ? Math.ceil(ragWords / 0.75) : 0;
 
         let abilitiesEstimate = 0;
         const enableAbilitiesToggle = document.getElementById('aiutoma-enable-abilities-toggle');
@@ -1994,7 +2031,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
         if (baseDisplay) {
-            baseDisplay.innerHTML = `⚡ Est. Tokens: <strong>~${baseEstimate}</strong>`;
+            baseDisplay.innerHTML = `⚡ Est. Tokens: <strong>~${contextEstimate}</strong>`;
         }
 
         let skillsDisplay = document.getElementById('aiutoma-skills-token-estimate-display');
@@ -2124,5 +2161,62 @@ document.addEventListener('DOMContentLoaded', function () {
 
     updateTokenEstimate(); // Initial call
     
-    // Session auto-restore on page load removed as it is now natively rendered in PHP via ui.php.
+    // Session auto-restore on page load: hydrate context settings if provided by ui.php
+    if (window.aiutomaSessionContext && typeof window.aiutomaSessionContext === 'object' && Object.keys(window.aiutomaSessionContext).length > 0) {
+        const ctx = window.aiutomaSessionContext;
+        if (ctx.model) {
+            const modelSelect = document.getElementById('aiutoma-playground-model');
+            if (modelSelect) {
+                modelSelect.value = ctx.model;
+                modelSelect.dispatchEvent(new Event('change'));
+            }
+        }
+        if (ctx.fallback_models !== undefined) {
+            const fallbackCb = document.getElementById('aiutoma-fallback-models');
+            if (fallbackCb) fallbackCb.checked = !!ctx.fallback_models;
+        }
+        if (ctx.enable_tools !== undefined) {
+            const toggle = document.getElementById('aiutoma-enable-abilities-toggle');
+            if (toggle) {
+                toggle.checked = !!ctx.enable_tools;
+                toggle.dispatchEvent(new Event('change'));
+            }
+        }
+        if (Array.isArray(ctx.enabled_abilities)) {
+            document.querySelectorAll('.aiutoma-ability-checkbox').forEach(cb => {
+                cb.checked = ctx.enabled_abilities.includes(cb.value);
+            });
+        }
+        if (ctx.enable_skills !== undefined) {
+            const toggle = document.getElementById('aiutoma-enable-skills-toggle');
+            if (toggle) {
+                toggle.checked = !!ctx.enable_skills;
+                toggle.dispatchEvent(new Event('change'));
+            }
+        }
+        if (Array.isArray(ctx.enabled_skills)) {
+            document.querySelectorAll('.aiutoma-skill-checkbox').forEach(cb => {
+                cb.checked = ctx.enabled_skills.includes(cb.value);
+            });
+        }
+        if (ctx.system_info !== undefined) {
+            const sysInfo = document.getElementById('aiutoma-include-system-info');
+            if (sysInfo) sysInfo.checked = !!ctx.system_info;
+        }
+        if (ctx.session_context !== undefined) {
+            const sessCtx = document.getElementById('aiutoma-session-context');
+            if (sessCtx) sessCtx.value = ctx.session_context;
+        }
+        if (ctx.permanent_context !== undefined) {
+            const permCtx = document.getElementById('aiutoma-permanent-context');
+            if (permCtx) permCtx.value = ctx.permanent_context;
+        }
+        if (Array.isArray(ctx.rag_types)) {
+            window.aiutomaSessionRagChecked = ctx.rag_types;
+            document.querySelectorAll('.aiutoma-rag-checkbox').forEach(cb => {
+                cb.checked = ctx.rag_types.includes(cb.dataset.type);
+            });
+        }
+        updateTokenEstimate();
+    }
 });

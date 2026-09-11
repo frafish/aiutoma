@@ -12,6 +12,9 @@ class Providers
     {
         add_action('init', [$this, 'register_subplugins_providers'], 5);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
+
+        // The AI module discovers models during plugins_loaded, before init fires.
+        $this->register_subplugins_providers();
     }
 
     public function enqueue_admin_scripts($hook)
@@ -82,6 +85,7 @@ class Providers
                 $registry->registerProvider($class);
             }
         }
+
         // Ollama Provider integration has been delegated to the official ai-provider-for-ollama plugin
         // to avoid conflicts and simplify configuration for the user.
     }

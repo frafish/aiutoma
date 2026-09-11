@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) { exit; }
 
 
 spl_autoload_register(static function (string $class): void {
-    $prefix = 'WordPress\\HuggingFaceAiProvider\\';
+    $prefix = 'Aiutoma\\HuggingFaceAiProvider\\';
     $baseDir = __DIR__ . '/';
 
     $len = strlen($prefix);

@@ -18,8 +18,8 @@ trait Ui {
     public function add_agent_menu() {
         add_submenu_page(
             'aiutoma',
-            __('Agent Settings', 'aiutoma'),
-            __('Editor Agent', 'aiutoma'),
+            __('Editor Agent Assistant Settings', 'aiutoma'),
+            __('Editor Assistant', 'aiutoma'),
             'manage_options',
             'aiutoma-agent',
             [$this, 'aiutoma_agent_page_html']
@@ -96,17 +96,20 @@ trait Ui {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         $screen_base = $screen ? $screen->base : 'elementor';
 
-        wp_enqueue_style('aiutoma-agent-style', AIUTOMA_URL . 'modules/editor/assets/css/agent.css', [], '1.0.0');
+        wp_enqueue_style('aiutoma-agent-style', AIUTOMA_URL . 'modules/editor/assets/css/agent.css', [], filemtime(AIUTOMA_PATH . 'modules/editor/assets/css/agent.css'));
         wp_enqueue_style('aiutoma-select2');
         wp_enqueue_script('aiutoma-select2');
         wp_enqueue_script('aiutoma-agent-script', AIUTOMA_URL . 'modules/editor/assets/js/agent.js', ['jquery', 'aiutoma-select2'], filemtime(AIUTOMA_PATH . 'modules/editor/assets/js/agent.js'), true);
         
+        $ui_mode = get_option('aiutoma_agent_ui_mode', 'floating');
+
         wp_localize_script('aiutoma-agent-script', 'aiutomaAgentData', [
             'rest_url' => esc_url_raw(rest_url('aiutoma/v1/ai-chat')),
             'nonce' => wp_create_nonce('wp_rest'),
             'screen' => $screen_base,
             'preferredModel' => get_user_meta(get_current_user_id(), '_aiutoma_preferred_model', true),
-            'debugMode' => (defined('WP_DEBUG') && WP_DEBUG)
+            'debugMode' => (defined('WP_DEBUG') && WP_DEBUG),
+            'uiMode' => $ui_mode
         ]);
     }
 
@@ -114,8 +117,9 @@ trait Ui {
         if (!$force && !$this->should_render_agent($is_elementor)) {
             return;
         }
+        $ui_mode = get_option('aiutoma_agent_ui_mode', 'floating');
         ?>
-        <div id="aiutoma-agent-chatbot" class="aiutoma-agent-closed">
+        <div id="aiutoma-agent-chatbot" class="aiutoma-agent-closed" data-ui-mode="<?php echo esc_attr($ui_mode); ?>">
             <div id="aiutoma-agent-header">
                 <span class="dashicons dashicons-superhero"></span> <span class="aiutoma-agent-title-text">Aiutoma Agent</span>
                 <button id="aiutoma-agent-settings-toggle" title="Settings" style="margin-left: auto; margin-right: 5px; background: none; border: none; color: #fff; cursor: pointer;"><span class="dashicons dashicons-admin-generic"></span></button>

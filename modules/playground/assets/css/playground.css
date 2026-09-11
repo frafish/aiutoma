@@ -574,6 +574,20 @@ details[open]>.aiutoma-card-summary-wrap::after {
     font-size: 13px;
 }
 
+.aiutoma-tool-header-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.aiutoma-tool-header-toggle:hover {
+    background: #e9ecef !important;
+}
+
 .aiutoma-tool-help {
     margin-left: auto;
     color: #646970;

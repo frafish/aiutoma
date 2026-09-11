@@ -165,6 +165,75 @@ trait WooCommerce {
             ]
         ]);
 
+        // Support variable products in woocommerce/products-query
+        add_filter('wp_pre_execute_ability', function($pre, $ability_name, $input, $ability) {
+            if ($ability_name === 'woocommerce/products-query' && is_array($input)) {
+                $type = $input['product_type_alias'] ?? ($input['type'] ?? '');
+                if ($type === 'variable') {
+                    if (!function_exists('wc_get_products')) {
+                        return $pre;
+                    }
+                    $page = (int)($input['page'] ?? 1);
+                    $per_page = (int)($input['per_page'] ?? 10);
+                    $args = [
+                        'type' => 'variable',
+                        'limit' => $per_page,
+                        'page' => $page,
+                        'paginate' => true,
+                        'return' => 'objects',
+                    ];
+                    if (!empty($input['status'])) $args['status'] = wc_clean($input['status']);
+                    if (!empty($input['sku'])) $args['sku'] = wc_clean($input['sku']);
+                    if (!empty($input['stock_status'])) $args['stock_status'] = wc_clean($input['stock_status']);
+                    if (!empty($input['search'])) $args['s'] = wc_clean($input['search']);
+
+                    $results = wc_get_products($args);
+                    $products = is_object($results) && isset($results->products) ? $results->products : [];
+                    $pages = is_object($results) && isset($results->max_num_pages) ? (int)$results->max_num_pages : (count($products) > 0 ? 1 : 0);
+                    $total = is_object($results) && isset($results->total) ? (int)$results->total : count($products);
+
+                    $formatted = [];
+                    foreach ($products as $product) {
+                        $stock_quantity = $product->get_stock_quantity();
+                        $permalink = $product->get_permalink();
+                        $formatted[] = [
+                            'id' => $product->get_id(),
+                            'name' => $product->get_name(),
+                            'slug' => $product->get_slug(),
+                            'permalink' => false === $permalink ? null : $permalink,
+                            'type' => $product->get_type(),
+                            'status' => $product->get_status(),
+                            'sku' => $product->get_sku(),
+                            'currency' => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'USD',
+                            'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol(), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401) : '$',
+                            'price' => $product->get_price(),
+                            'regular_price' => $product->get_regular_price(),
+                            'sale_price' => $product->get_sale_price(),
+                            'stock_status' => $product->get_stock_status(),
+                            'stock_quantity' => null === $stock_quantity ? null : (function_exists('wc_stock_amount') ? wc_stock_amount($stock_quantity) : (int)$stock_quantity),
+                            'manage_stock' => (bool)$product->get_manage_stock(),
+                            'virtual' => (bool)$product->get_virtual(),
+                            'downloadable' => (bool)$product->get_downloadable(),
+                            'date_created' => function_exists('wc_rest_prepare_date_response') ? wc_rest_prepare_date_response($product->get_date_created(), false) : null,
+                            'date_created_gmt' => function_exists('wc_rest_prepare_date_response') ? wc_rest_prepare_date_response($product->get_date_created()) : null,
+                            'date_modified' => function_exists('wc_rest_prepare_date_response') ? wc_rest_prepare_date_response($product->get_date_modified(), false) : null,
+                            'date_modified_gmt' => function_exists('wc_rest_prepare_date_response') ? wc_rest_prepare_date_response($product->get_date_modified()) : null,
+                        ];
+                    }
+
+                    return [
+                        'products' => $formatted,
+                        'total_pages' => $pages,
+                        'page' => $page,
+                        'per_page' => $per_page,
+                        'total_items' => $total,
+                        'total' => $total,
+                    ];
+                }
+            }
+            return $pre;
+        }, 10, 4);
+
         \Aiutoma\Modules\Ai\Abilities::register('woocommerce/manage-variations', [
             'category' => 'woocommerce',
             'label' => __('Manage WooCommerce Product Variations', 'aiutoma'),
@@ -175,15 +244,18 @@ trait WooCommerce {
                     return new \WP_Error('unsupported', 'WooCommerce product variations are not available.');
                 }
 
-                $action = $input['action'];
-                $args = $input['args'] ?? [];
+                $input = is_array($input) ? $input : [];
+                $nested = isset($input['args']) && is_array($input['args']) ? $input['args'] : [];
+                $params = array_merge($input, $nested);
+
+                $action = !empty($params['action']) ? strtolower(trim($params['action'])) : 'list';
 
                 if ($action === 'list') {
-                    $parent_id = intval($args['parent_id'] ?? 0);
-                    if (!$parent_id) return new \WP_Error('missing_id', 'parent_id is required.');
+                    $parent_id = intval($params['parent_id'] ?? ($params['product_id'] ?? ($params['id'] ?? 0)));
+                    if (!$parent_id) return new \WP_Error('missing_id', 'parent_id or product_id is required.');
                     $parent = wc_get_product($parent_id);
                     if (!$parent || !$parent->is_type('variable')) {
-                        return new \WP_Error('invalid_parent', 'Parent product must be a variable product.');
+                        return new \WP_Error('invalid_parent', sprintf('Parent product (ID %d) must be a variable product.', $parent_id));
                     }
 
                     $children_ids = $parent->get_children();
@@ -203,42 +275,47 @@ trait WooCommerce {
                         ];
                     }
 
-                    return ['success' => true, 'parent_id' => $parent_id, 'variations' => $variations];
+                    return [
+                        'success' => true,
+                        'parent_id' => $parent_id,
+                        'total_variations' => count($variations),
+                        'variations' => $variations
+                    ];
 
                 } elseif ($action === 'create') {
-                    $parent_id = intval($args['parent_id'] ?? 0);
-                    if (!$parent_id) return new \WP_Error('missing_id', 'parent_id is required.');
+                    $parent_id = intval($params['parent_id'] ?? ($params['product_id'] ?? ($params['id'] ?? 0)));
+                    if (!$parent_id) return new \WP_Error('missing_id', 'parent_id or product_id is required.');
                     $parent = wc_get_product($parent_id);
                     if (!$parent || !$parent->is_type('variable')) {
-                        return new \WP_Error('invalid_parent', 'Parent product must be a variable product.');
+                        return new \WP_Error('invalid_parent', sprintf('Parent product (ID %d) must be a variable product.', $parent_id));
                     }
 
                     $variation = new \WC_Product_Variation();
                     $variation->set_parent_id($parent_id);
 
-                    if (isset($args['attributes']) && is_array($args['attributes'])) {
+                    if (isset($params['attributes']) && is_array($params['attributes'])) {
                         $sanitized_attrs = [];
-                        foreach ($args['attributes'] as $k => $v) {
+                        foreach ($params['attributes'] as $k => $v) {
                             $sanitized_attrs[sanitize_title($k)] = $v;
                         }
                         $variation->set_attributes($sanitized_attrs);
                     }
 
-                    if (isset($args['price']) || isset($args['regular_price'])) {
-                        $price = (string)($args['regular_price'] ?? $args['price']);
+                    if (isset($params['price']) || isset($params['regular_price'])) {
+                        $price = (string)($params['regular_price'] ?? $params['price']);
                         $variation->set_regular_price($price);
                         $variation->set_price($price);
                     }
 
-                    if (isset($args['stock_quantity'])) {
+                    if (isset($params['stock_quantity'])) {
                         $variation->set_manage_stock(true);
-                        $variation->set_stock_quantity((int)$args['stock_quantity']);
+                        $variation->set_stock_quantity((int)$params['stock_quantity']);
                     } else {
-                        $variation->set_stock_status('instock');
+                        $variation->set_stock_status($params['stock_status'] ?? 'instock');
                     }
 
-                    if (!empty($args['sku'])) {
-                        $variation->set_sku($args['sku']);
+                    if (!empty($params['sku'])) {
+                        $variation->set_sku($params['sku']);
                     }
 
                     $var_id = $variation->save();
@@ -250,34 +327,38 @@ trait WooCommerce {
                     return ['success' => true, 'variation_id' => $var_id, 'message' => 'Variation created successfully.'];
 
                 } elseif ($action === 'update') {
-                    $variation_id = intval($args['id'] ?? ($args['variation_id'] ?? 0));
+                    $variation_id = intval($params['variation_id'] ?? ($params['id'] ?? ($params['product_id'] ?? 0)));
                     if (!$variation_id) return new \WP_Error('missing_id', 'variation_id is required.');
                     $variation = wc_get_product($variation_id);
                     if (!$variation || !$variation->is_type('variation')) {
                         return new \WP_Error('invalid_variation', 'Variation not found.');
                     }
 
-                    if (isset($args['attributes']) && is_array($args['attributes'])) {
+                    if (isset($params['attributes']) && is_array($params['attributes'])) {
                         $attrs = $variation->get_attributes();
-                        foreach ($args['attributes'] as $k => $v) {
+                        foreach ($params['attributes'] as $k => $v) {
                             $attrs[sanitize_title($k)] = $v;
                         }
                         $variation->set_attributes($attrs);
                     }
 
-                    if (isset($args['price']) || isset($args['regular_price'])) {
-                        $price = (string)($args['regular_price'] ?? $args['price']);
+                    if (isset($params['price']) || isset($params['regular_price'])) {
+                        $price = (string)($params['regular_price'] ?? $params['price']);
                         $variation->set_regular_price($price);
                         $variation->set_price($price);
                     }
 
-                    if (isset($args['stock_quantity'])) {
+                    if (isset($params['stock_quantity'])) {
                         $variation->set_manage_stock(true);
-                        $variation->set_stock_quantity((int)$args['stock_quantity']);
+                        $variation->set_stock_quantity((int)$params['stock_quantity']);
                     }
 
-                    if (isset($args['sku'])) {
-                        $variation->set_sku($args['sku']);
+                    if (!empty($params['stock_status'])) {
+                        $variation->set_stock_status($params['stock_status']);
+                    }
+
+                    if (isset($params['sku'])) {
+                        $variation->set_sku($params['sku']);
                     }
 
                     $variation->save();
@@ -289,7 +370,7 @@ trait WooCommerce {
                     return ['success' => true, 'variation_id' => $variation_id, 'message' => 'Variation updated successfully.'];
 
                 } elseif ($action === 'delete') {
-                    $variation_id = intval($args['id'] ?? ($args['variation_id'] ?? 0));
+                    $variation_id = intval($params['variation_id'] ?? ($params['id'] ?? ($params['product_id'] ?? 0)));
                     if (!$variation_id) return new \WP_Error('missing_id', 'variation_id is required.');
                     $variation = wc_get_product($variation_id);
                     if (!$variation || !$variation->is_type('variation')) {
@@ -305,19 +386,65 @@ trait WooCommerce {
                     return ['success' => true, 'message' => 'Variation deleted successfully.'];
                 }
 
-                return new \WP_Error('invalid_action', 'Unsupported action.');
+                return new \WP_Error('invalid_action', 'Unsupported action. Supported actions: list, create, update, delete.');
             },
             'permission_callback' => function() { return current_user_can('manage_woocommerce'); },
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
-                    'action' => ['type' => 'string', 'enum' => ['list', 'create', 'update', 'delete'], 'description' => 'Action to perform'],
+                    'action' => [
+                        'type' => 'string',
+                        'enum' => ['list', 'create', 'update', 'delete'],
+                        'default' => 'list',
+                        'description' => 'Action to perform: "list" to view variations of a variable product, "create" to add a new variation, "update" to modify an existing variation, or "delete" to remove a variation. Defaults to "list".'
+                    ],
+                    'product_id' => [
+                        'type' => 'integer',
+                        'description' => 'Parent variable product ID (used for "list" and "create"). Alias of parent_id.'
+                    ],
+                    'parent_id' => [
+                        'type' => 'integer',
+                        'description' => 'Parent variable product ID (used for "list" and "create").'
+                    ],
+                    'variation_id' => [
+                        'type' => 'integer',
+                        'description' => 'Variation ID to update or delete.'
+                    ],
+                    'id' => [
+                        'type' => 'integer',
+                        'description' => 'Variation ID (alias of variation_id for "update" and "delete").'
+                    ],
+                    'attributes' => [
+                        'type' => 'object',
+                        'description' => 'Key-value map of variation attributes, e.g. {"Size": "L", "Color": "Blue"} or {"pa_size": "l"}.'
+                    ],
+                    'price' => [
+                        'type' => 'string',
+                        'description' => 'Price for the variation (e.g. "29.99").'
+                    ],
+                    'regular_price' => [
+                        'type' => 'string',
+                        'description' => 'Regular price for the variation.'
+                    ],
+                    'stock_quantity' => [
+                        'type' => 'integer',
+                        'description' => 'Stock quantity for the variation.'
+                    ],
+                    'stock_status' => [
+                        'type' => 'string',
+                        'enum' => ['instock', 'outofstock', 'onbackorder'],
+                        'description' => 'Stock status for the variation.'
+                    ],
+                    'sku' => [
+                        'type' => 'string',
+                        'description' => 'SKU string for the variation.'
+                    ],
                     'args' => [
                         'type' => 'object',
-                        'description' => 'Action arguments. For list: {"parent_id": 10}. For create: {"parent_id": 10, "attributes": {"Size": "L"}, "price": "29.99"}. For update: {"variation_id": 15, "price": "24.99"}. For delete: {"variation_id": 15}.'
+                        'description' => 'Optional nested arguments object for backward compatibility.'
                     ]
                 ],
-                'required' => ['action', 'args']
+                'additionalProperties' => true
             ]
         ]);
 

@@ -19,7 +19,7 @@ trait Settings {
         $post_types = get_post_types(['public' => true], 'objects');
         ?>
         <div class="wrap">
-            <h1 class="wp-heading-inline"><?php esc_html_e('SEO', 'aiutoma'); ?></h1>
+            <h1 class="wp-heading-inline"><?php esc_html_e('SEO/GEO/AEO', 'aiutoma'); ?></h1>
             <hr class="wp-header-end">
 
             <nav class="nav-tab-wrapper wp-clearfix" aria-label="Secondary menu">

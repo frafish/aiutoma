@@ -98,8 +98,8 @@ trait Init {
     public function add_seo_menu() {
         add_submenu_page(
             'aiutoma',
-            __('SEO', 'aiutoma'),
-            __('SEO', 'aiutoma'),
+            __('SEO/GEO/AEO', 'aiutoma'),
+            __('SEO/GEO/AEO', 'aiutoma'),
             'manage_options',
             'aiutoma-seo',
             [$this, 'aiutoma_seo_page_html']

@@ -179,6 +179,14 @@
     margin: 0 50px 15px 0;
 }
 
+.aiutoma-chatbot-msg-system {
+    background: #f0f6fc;
+    border-left: 4px solid #72aee6;
+    margin: 0 25px 15px 25px;
+    font-style: italic;
+    text-align: center;
+}
+
 /* Mobile-first and Responsive Adjustments */
 @media screen and (max-width: 782px) {
     .aiutoma-chatbot-user-panel {

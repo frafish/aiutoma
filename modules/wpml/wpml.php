@@ -38,64 +38,59 @@ class Wpml
 
     public function enqueue_wpml_scripts($hook)
     {
-        $is_wpml_page = (strpos($hook, 'aiutoma-wpml') !== false);
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
 
-        $inject_buttons = false;
-        $screen = get_current_screen();
-        if ($screen && in_array($screen->base, ['post', 'term', 'edit-tags'])) {
-            $inject_buttons = true;
+        $is_aiutoma_wpml = ($page === 'aiutoma-wpml' || strpos($hook, 'aiutoma-wpml') !== false);
+        $is_native_wpml_jobs = (strpos($page, 'tm/menu/main.php') !== false || strpos($hook, 'tm/menu/main') !== false);
+
+        if (!$is_aiutoma_wpml && !$is_native_wpml_jobs) {
+            return;
         }
 
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $is_native_wpml_jobs = (isset($_GET['page']) && strpos(sanitize_text_field(wp_unslash($_GET['page'])), 'tm/menu/main.php') !== false && isset($_GET['tab']) && in_array(sanitize_text_field(wp_unslash($_GET['tab'])), ['jobs', 'tasks']));
+        wp_enqueue_style('aiutoma-wpml-style', AIUTOMA_URL . 'modules/wpml/assets/css/wpml.css', [], filemtime(AIUTOMA_PATH . 'modules/wpml/assets/css/wpml.css'));
+        
+        $dependencies = ['jquery'];
 
-        if ($is_wpml_page || $inject_buttons || $is_native_wpml_jobs) {
-            wp_enqueue_style('aiutoma-wpml-style', AIUTOMA_URL . 'modules/wpml/assets/css/wpml.css', [], filemtime(AIUTOMA_PATH . 'modules/wpml/assets/css/wpml.css'));
-            
+        // Enqueue Select2 and XLIFF script only on Aiutoma WPML pages
+        if ($is_aiutoma_wpml) {
             $s2_js = AIUTOMA_PATH . 'modules/ai/assets/js/select2.min.js';
             $s2_css = AIUTOMA_PATH . 'modules/ai/assets/css/select2.min.css';
             $s2_js_ver = file_exists($s2_js) ? filemtime($s2_js) : AIUTOMA_VERSION;
             $s2_css_ver = file_exists($s2_css) ? filemtime($s2_css) : AIUTOMA_VERSION;
 
-            // Enqueue Select2 for model selections
             wp_enqueue_style('aiutoma-select2', AIUTOMA_URL . 'modules/ai/assets/css/select2.min.css', array(), $s2_css_ver);
             wp_enqueue_script('aiutoma-select2', AIUTOMA_URL . 'modules/ai/assets/js/select2.min.js', array('jquery'), $s2_js_ver, true);
+            $dependencies[] = 'aiutoma-select2';
 
-            // Force inject JS to bypass WPML strict deregistration
-            wp_enqueue_script('aiutoma-wpml-script', AIUTOMA_URL . 'modules/wpml/assets/js/wpml.js', array('jquery', 'aiutoma-select2'), filemtime(AIUTOMA_PATH . 'modules/wpml/assets/js/wpml.js'), true);
             wp_enqueue_script('aiutoma-wpml-xliff-script', AIUTOMA_URL . 'modules/wpml/assets/js/xliff.js', array('jquery'), filemtime(AIUTOMA_PATH . 'modules/wpml/assets/js/xliff.js'), true);
-
-            $is_auto_translate_checked = '';
-            if ($screen && $screen->base === 'post') {
-                $post = get_post();
-                if ($post && get_post_meta($post->ID, '_aiutoma_wpml_force_retranslate', true) === '1') {
-                    $is_auto_translate_checked = 'checked';
-                }
-            }
-
-            $aiutomaWpmlData = [
-                'isWpmlPage' => $is_wpml_page,
-                'isNativeWpmlJobs' => $is_native_wpml_jobs,
-                'injectButtons' => $inject_buttons,
-                'nonce' => wp_create_nonce('wp_rest'),
-                'restGetMissingUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-get-missing')),
-                'restTranslateUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-translate')),
-                'restStringsGetMissingUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-strings-get-missing')),
-                'restStringsTranslateUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-strings-translate')),
-                'restXliffGetJobsUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-xliff-jobs')),
-                'restXliffTranslateUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-xliff-translate')),
-                'textScanning' => __('Scanning...', 'aiutoma'),
-                'textTranslate' => __('Translate via AI', 'aiutoma'),
-                'textTranslateAll' => __('Translate all missing fields via AI', 'aiutoma'),
-                'textError' => __('Translation failed', 'aiutoma'),
-                /* translators: %d: number of missing languages */
-                'textConfirm' => __('Translate %d missing languages?', 'aiutoma'),
-                'textAutoTranslate' => __('Update translations via AI automatically on save', 'aiutoma'),
-                'autoTranslateChecked' => $is_auto_translate_checked
-            ];
-
-            wp_localize_script('aiutoma-wpml-script', 'aiutomaWpmlData', $aiutomaWpmlData);
         }
+
+        // Force inject JS to bypass WPML strict deregistration
+        wp_enqueue_script('aiutoma-wpml-script', AIUTOMA_URL . 'modules/wpml/assets/js/wpml.js', $dependencies, filemtime(AIUTOMA_PATH . 'modules/wpml/assets/js/wpml.js'), true);
+
+        $aiutomaWpmlData = [
+            'isWpmlPage' => $is_aiutoma_wpml,
+            'isNativeWpmlJobs' => $is_native_wpml_jobs,
+            'injectButtons' => false,
+            'nonce' => wp_create_nonce('wp_rest'),
+            'restGetMissingUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-get-missing')),
+            'restTranslateUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-translate')),
+            'restStringsGetMissingUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-strings-get-missing')),
+            'restStringsTranslateUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-strings-translate')),
+            'restXliffGetJobsUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-xliff-jobs')),
+            'restXliffTranslateUrl' => esc_url_raw(rest_url('aiutoma/v1/wpml-xliff-translate')),
+            'textScanning' => __('Scanning...', 'aiutoma'),
+            'textTranslate' => __('Translate via AI', 'aiutoma'),
+            'textTranslateAll' => __('Translate all missing fields via AI', 'aiutoma'),
+            'textError' => __('Translation failed', 'aiutoma'),
+            /* translators: %d: number of missing languages */
+            'textConfirm' => __('Translate %d missing languages?', 'aiutoma'),
+            'textAutoTranslate' => __('Update translations via AI automatically on save', 'aiutoma'),
+            'autoTranslateChecked' => ''
+        ];
+
+        wp_localize_script('aiutoma-wpml-script', 'aiutomaWpmlData', $aiutomaWpmlData);
     }
 
     public function register_wpml_translate_route()
@@ -210,6 +205,11 @@ class Wpml
 
     public function inject_auto_translation_checkbox()
     {
+        $screen = get_current_screen();
+        if ($screen && method_exists($screen, 'is_block_editor') && $screen->is_block_editor()) {
+            return;
+        }
+
         global $sitepress;
         if (!$sitepress) return;
 

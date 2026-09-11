@@ -604,5 +604,512 @@ trait Core
                 'required' => ['action', 'option_name']
             ]
         ]);
+
+        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/abilities', [
+            'category' => 'aiutoma',
+            'label' => __('System Abilities & Tools', 'aiutoma'),
+            'description' => __('Discover, inspect, and execute any registered WordPress ability on-demand. Use action "list" to discover available abilities, action "get" to inspect parameter schemas, or action "execute" to run an ability with parameters.', 'aiutoma'),
+            'execute_callback' => function ($input) {
+                $action = isset($input['action']) ? sanitize_key($input['action']) : 'list';
+                $all_abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
+                $all_abilities = apply_filters('aiutoma/abilities', $all_abilities);
+
+                // Helper to resolve an ability by name or normalized slug
+                $resolve_ability = function ($name) use ($all_abilities) {
+                    if (empty($name) || !is_string($name)) return null;
+                    if (function_exists('wp_get_ability')) {
+                        $ab = wp_get_ability($name);
+                        if ($ab) return $ab;
+                    }
+                    $clean = str_replace('_', '-', $name);
+                    foreach ($all_abilities as $ab) {
+                        $ab_name = method_exists($ab, 'get_name') ? $ab->get_name() : '';
+                        if ($ab_name === $name || str_replace('/', '-', $ab_name) === $clean || str_replace('/', '_', $ab_name) === $name) {
+                            return $ab;
+                        }
+                    }
+                    return null;
+                };
+
+                // Action: LIST
+                if ($action === 'list') {
+                    $category_filter = isset($input['category']) ? sanitize_text_field($input['category']) : '';
+                    $search_filter = isset($input['search']) ? trim(sanitize_text_field($input['search'])) : '';
+                    
+                    // If no filter is specified and registry is large, return a compact categorized index to save tokens
+                    $is_unfiltered = empty($category_filter) && empty($search_filter);
+                    if ($is_unfiltered && count($all_abilities) > 25) {
+                        $categories_map = [];
+                        foreach ($all_abilities as $ability) {
+                            $name = method_exists($ability, 'get_name') ? $ability->get_name() : '';
+                            if (empty($name)) continue;
+                            $meta = method_exists($ability, 'get_meta') ? $ability->get_meta() : [];
+                            if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) continue;
+                            $parts = explode('/', $name);
+                            $ns = count($parts) >= 2 ? $parts[0] : 'other';
+                            if (!isset($categories_map[$ns])) {
+                                $categories_map[$ns] = [];
+                            }
+                            $categories_map[$ns][] = $name;
+                        }
+                        return [
+                            'success' => true,
+                            'total' => count($all_abilities),
+                            'categories' => $categories_map,
+                            'usage_hint' => 'To keep token usage minimal, call action "list" with "search" (e.g. "site", "post", "template") or "category" (e.g. "core", "gutenberg", "aiutoma") to inspect specific abilities, or call action "get" / "execute" directly with the ability name.',
+                        ];
+                    }
+
+                    $list = [];
+
+                    foreach ($all_abilities as $ability) {
+                        $name = method_exists($ability, 'get_name') ? $ability->get_name() : '';
+                        if (empty($name)) continue;
+
+                        $meta = method_exists($ability, 'get_meta') ? $ability->get_meta() : [];
+                        if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
+                            continue;
+                        }
+
+                        $parts = explode('/', $name);
+                        $ns = count($parts) >= 2 ? $parts[0] : 'other';
+
+                        if (!empty($category_filter) && strcasecmp($ns, $category_filter) !== 0) {
+                            continue;
+                        }
+
+                        $label = method_exists($ability, 'get_label') ? $ability->get_label() : $name;
+                        $desc = method_exists($ability, 'get_description') ? $ability->get_description() : '';
+
+                        if (!empty($search_filter)) {
+                            $haystack = $name . ' ' . $label . ' ' . $desc;
+                            if (stripos($haystack, $search_filter) === false) {
+                                continue;
+                            }
+                        }
+
+                        $list[] = [
+                            'name' => $name,
+                            'label' => $label,
+                            'category' => $ns,
+                            'description' => (mb_strlen($desc) > 120 ? mb_substr($desc, 0, 117) . '...' : $desc),
+                        ];
+                    }
+
+                    return [
+                        'success' => true,
+                        'total' => count($list),
+                        'abilities' => $list,
+                        'usage_hint' => 'Call action "get" with "ability_name" to inspect parameter requirements, or action "execute" with "ability_name" and "ability_input" to run it.',
+                    ];
+                }
+
+                // Action: GET (schema)
+                if ($action === 'get') {
+                    $ability_name = isset($input['ability_name']) ? sanitize_text_field($input['ability_name']) : '';
+                    if (empty($ability_name)) {
+                        return new \WP_Error('missing_ability_name', __('Parameter "ability_name" is required for action "get".', 'aiutoma'));
+                    }
+
+                    $ability = $resolve_ability($ability_name);
+                    if (!$ability) {
+                        return new \WP_Error('ability_not_found', sprintf(__('Ability "%s" not found. Call action "list" to view all registered abilities.', 'aiutoma'), $ability_name));
+                    }
+
+                    $input_schema = method_exists($ability, 'get_input_schema') ? $ability->get_input_schema() : ['type' => 'object', 'properties' => new \stdClass()];
+                    
+                    // Expose variable support in woocommerce/products-query schema to the AI
+                    if ($ability_name === 'woocommerce/products-query' && is_array($input_schema) && isset($input_schema['properties']['product_type_alias'])) {
+                        if (isset($input_schema['properties']['product_type_alias']['enum']) && is_array($input_schema['properties']['product_type_alias']['enum'])) {
+                            if (!in_array('variable', $input_schema['properties']['product_type_alias']['enum'])) {
+                                $input_schema['properties']['product_type_alias']['enum'][] = 'variable';
+                            }
+                        }
+                        if (isset($input_schema['properties']['product_type_alias']['description'])) {
+                            $input_schema['properties']['product_type_alias']['description'] .= ' (Also supports "variable" for variable products).';
+                        }
+                    }
+
+                    return [
+                        'success' => true,
+                        'name' => $ability->get_name(),
+                        'label' => method_exists($ability, 'get_label') ? $ability->get_label() : $ability->get_name(),
+                        'description' => method_exists($ability, 'get_description') ? $ability->get_description() : '',
+                        'input_schema' => $input_schema,
+                    ];
+                }
+
+                // Action: EXECUTE
+                if ($action === 'execute') {
+                    $ability_name = isset($input['ability_name']) ? sanitize_text_field($input['ability_name']) : '';
+                    if (empty($ability_name)) {
+                        return new \WP_Error('missing_ability_name', __('Parameter "ability_name" is required for action "execute".', 'aiutoma'));
+                    }
+
+                    if ($ability_name === 'aiutoma/abilities') {
+                        return new \WP_Error('invalid_target', __('Cannot execute aiutoma/abilities within itself.', 'aiutoma'));
+                    }
+
+                    $ability = $resolve_ability($ability_name);
+                    if (!$ability) {
+                        return new \WP_Error('ability_not_found', sprintf(__('Ability "%s" not found.', 'aiutoma'), $ability_name));
+                    }
+
+                    $ability_input = isset($input['ability_input']) && is_array($input['ability_input']) ? $input['ability_input'] : [];
+
+                    if (method_exists($ability, 'check_permissions') && !$ability->check_permissions($ability_input)) {
+                        return new \WP_Error('forbidden', sprintf(__('Permission denied for ability "%s".', 'aiutoma'), $ability_name));
+                    }
+
+                    // Direct native handling for variable products query (bypasses WooCommerce core enum limitation)
+                    if ($ability_name === 'woocommerce/products-query') {
+                        $p_type = $ability_input['product_type_alias'] ?? ($ability_input['type'] ?? '');
+                        if ($p_type === 'variable' && function_exists('wc_get_products')) {
+                            $page = (int)($ability_input['page'] ?? 1);
+                            $per_page = (int)($ability_input['per_page'] ?? 10);
+                            $wc_args = [
+                                'type' => 'variable',
+                                'limit' => $per_page,
+                                'page' => $page,
+                                'paginate' => true,
+                                'return' => 'objects',
+                            ];
+                            if (!empty($ability_input['status'])) $wc_args['status'] = wc_clean($ability_input['status']);
+                            if (!empty($ability_input['sku'])) $wc_args['sku'] = wc_clean($ability_input['sku']);
+                            if (!empty($ability_input['stock_status'])) $wc_args['stock_status'] = wc_clean($ability_input['stock_status']);
+                            if (!empty($ability_input['search'])) $wc_args['s'] = wc_clean($ability_input['search']);
+
+                            $results = wc_get_products($wc_args);
+                            $products = is_object($results) && isset($results->products) ? $results->products : [];
+                            $pages = is_object($results) && isset($results->max_num_pages) ? (int)$results->max_num_pages : (count($products) > 0 ? 1 : 0);
+                            $total = is_object($results) && isset($results->total) ? (int)$results->total : count($products);
+
+                            $formatted = [];
+                            foreach ($products as $product) {
+                                $stock_quantity = $product->get_stock_quantity();
+                                $permalink = $product->get_permalink();
+                                $formatted[] = [
+                                    'id' => $product->get_id(),
+                                    'name' => $product->get_name(),
+                                    'slug' => $product->get_slug(),
+                                    'permalink' => false === $permalink ? null : $permalink,
+                                    'type' => $product->get_type(),
+                                    'status' => $product->get_status(),
+                                    'sku' => $product->get_sku(),
+                                    'currency' => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'USD',
+                                    'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol(), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401) : '$',
+                                    'price' => $product->get_price(),
+                                    'regular_price' => $product->get_regular_price(),
+                                    'sale_price' => $product->get_sale_price(),
+                                    'stock_status' => $product->get_stock_status(),
+                                    'stock_quantity' => null === $stock_quantity ? null : (function_exists('wc_stock_amount') ? wc_stock_amount($stock_quantity) : (int)$stock_quantity),
+                                    'manage_stock' => (bool)$product->get_manage_stock(),
+                                    'virtual' => (bool)$product->get_virtual(),
+                                    'downloadable' => (bool)$product->get_downloadable(),
+                                ];
+                            }
+
+                            return [
+                                'success' => true,
+                                'ability_name' => $ability_name,
+                                'data' => [
+                                    'products' => $formatted,
+                                    'total_pages' => $pages,
+                                    'page' => $page,
+                                    'per_page' => $per_page,
+                                    'total_items' => $total,
+                                    'total' => $total,
+                                ],
+                            ];
+                        }
+                    }
+
+                    $result = $ability->execute($ability_input);
+                    if (is_wp_error($result)) {
+                        return $result;
+                    }
+
+                    // Enrich WooCommerce products-query with total_items if omitted by WooCommerce
+                    if ($ability_name === 'woocommerce/products-query' && is_array($result)) {
+                        if (!isset($result['total_items']) && !isset($result['total'])) {
+                            if (function_exists('wc_get_products')) {
+                                $count_args = array_merge($ability_input, [
+                                    'return' => 'ids',
+                                    'limit' => -1,
+                                    'paginate' => false,
+                                ]);
+                                unset($count_args['page'], $count_args['per_page']);
+                                $all_ids = wc_get_products($count_args);
+                                $total_count = is_array($all_ids) ? count($all_ids) : (int)$all_ids;
+                                $result['total_items'] = $total_count;
+                                $result['total'] = $total_count;
+                            }
+                        }
+                    }
+
+                    return [
+                        'success' => true,
+                        'ability_name' => $ability->get_name(),
+                        'data' => $result,
+                    ];
+                }
+
+                return new \WP_Error('invalid_action', __('Invalid action. Supported actions are "list", "get", and "execute".', 'aiutoma'));
+            },
+            'permission_callback' => '__return_true',
+            'meta' => [
+                'annotations' => [
+                    'readonly' => false,
+                    'destructive' => false,
+                    'idempotent' => false,
+                ],
+            ],
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'action' => [
+                        'type' => 'string',
+                        'enum' => ['list', 'get', 'execute'],
+                        'description' => 'The action to perform: "list" to discover available abilities, "get" to inspect parameter schema, or "execute" to run an ability.',
+                    ],
+                    'ability_name' => [
+                        'type' => 'string',
+                        'description' => 'The name of the ability to inspect or execute (e.g. "aiutoma/manage-posts", "gutenberg/manage-templates", "aiutoma/page-snapshot", "aiutoma/skills"). Required for "get" and "execute".',
+                    ],
+                    'ability_input' => [
+                        'type' => 'object',
+                        'description' => 'Parameters to pass to the ability when action is "execute". Required schema matches the target ability\'s input_schema.',
+                    ],
+                    'category' => [
+                        'type' => 'string',
+                        'description' => 'Optional filter for action "list" (e.g. "aiutoma", "gutenberg", "woocommerce", "wpml").',
+                    ],
+                    'search' => [
+                        'type' => 'string',
+                        'description' => 'Optional keyword search filter for action "list".',
+                    ],
+                ],
+                'required' => ['action'],
+            ],
+        ]);
+
+        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/skills', [
+            'category' => 'aiutoma',
+            'label' => __('Knowledge Skills & Guidelines', 'aiutoma'),
+            'description' => __('Discover and read specialized WordPress development skills, architecture guides, and coding guidelines on-demand (e.g. WooCommerce, Interactivity API, Block Themes, Performance Tuning, Blueprint, Playground, Hooks & Lifecycle). Use "list" to view available skills and "read" to retrieve the full instructions for a specific skill.', 'aiutoma'),
+            'execute_callback' => function ($input) {
+                $action = isset($input['action']) ? sanitize_key($input['action']) : 'list';
+                $ai = \Aiutoma\Modules\Ai\Ai::instance();
+
+                if ($action === 'list') {
+                    $skills = $ai->get_all_skills_summary();
+                    return [
+                        'success' => true,
+                        'total_skills' => count($skills),
+                        'skills' => $skills,
+                        'usage_hint' => 'Call action "read" with the skill_id to retrieve detailed instructions and architecture patterns.',
+                    ];
+                }
+
+                if ($action === 'read') {
+                    $skill_id = isset($input['skill_id']) ? sanitize_text_field($input['skill_id']) : '';
+                    if (empty($skill_id)) {
+                        return new \WP_Error('missing_skill_id', __('Skill ID is required when action is "read".', 'aiutoma'));
+                    }
+
+                    $skill = $ai->get_skill_by_id($skill_id);
+                    if (!$skill) {
+                        return new \WP_Error('skill_not_found', sprintf(__('Skill "%s" not found. Call action "list" to see all available skills.', 'aiutoma'), $skill_id));
+                    }
+
+                    return [
+                        'success' => true,
+                        'skill_id' => $skill['slug'],
+                        'name' => $skill['name'],
+                        'description' => $skill['description'],
+                        'is_builtin' => !empty($skill['is_builtin']),
+                        'content' => $skill['content'],
+                    ];
+                }
+
+                return new \WP_Error('invalid_action', __('Invalid action. Supported actions are "list" and "read".', 'aiutoma'));
+            },
+            'permission_callback' => '__return_true',
+            'meta' => [
+                'annotations' => [
+                    'readonly' => true,
+                    'destructive' => false,
+                    'idempotent' => true,
+                ],
+            ],
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'action' => [
+                        'type' => 'string',
+                        'enum' => ['list', 'read'],
+                        'description' => 'The action to perform: "list" to get available skills and summaries, or "read" to get the full guidelines for a specific skill.',
+                    ],
+                    'skill_id' => [
+                        'type' => 'string',
+                        'description' => 'The ID or slug of the skill to read (e.g. "wp-woocommerce-development", "wp-interactivity-api", "wp-block-themes", "wp-hooks-and-lifecycle"). Required when action is "read".',
+                    ],
+                ],
+                'required' => ['action'],
+            ],
+        ]);
+
+        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/page-snapshot', [
+            'category' => 'aiutoma',
+            'label' => __('Page & Post Snapshot', 'aiutoma'),
+            'description' => __('Inspect a page or post and get an all-in-one structured snapshot: status, permalink, author, template, categories/tags, custom fields, featured image, hierarchical block outline with text previews and paths, and word count.', 'aiutoma'),
+            'execute_callback' => function ($input) {
+                $post = null;
+                if (!empty($input['post_id'])) {
+                    $post = get_post(absint($input['post_id']));
+                } elseif (!empty($input['url'])) {
+                    $post_id = url_to_postid(esc_url_raw($input['url']));
+                    if ($post_id) {
+                        $post = get_post($post_id);
+                    }
+                }
+
+                if (!$post || !($post instanceof \WP_Post)) {
+                    return new \WP_Error('post_not_found', __('Post or page not found. Provide a valid post_id or url.', 'aiutoma'));
+                }
+
+                $post_id = $post->ID;
+
+                // Author
+                $author_data = [
+                    'id' => (int) $post->post_author,
+                    'name' => get_the_author_meta('display_name', $post->post_author) ?: '',
+                ];
+
+                // Template
+                $template = get_page_template_slug($post_id);
+                if (empty($template)) {
+                    $template = 'default';
+                }
+
+                // Featured Image
+                $featured_image = null;
+                if (has_post_thumbnail($post_id)) {
+                    $thumb_id = get_post_thumbnail_id($post_id);
+                    $thumb_url = get_the_post_thumbnail_url($post_id, 'full');
+                    $alt_text = get_post_meta($thumb_id, '_wp_attachment_image_alt', true);
+                    $featured_image = [
+                        'id' => $thumb_id,
+                        'url' => $thumb_url ?: '',
+                        'alt' => $alt_text ?: '',
+                    ];
+                }
+
+                // Taxonomies
+                $taxonomies = [];
+                $post_taxonomies = get_object_taxonomies($post->post_type, 'objects');
+                if (is_array($post_taxonomies)) {
+                    foreach ($post_taxonomies as $tax_name => $tax_obj) {
+                        $terms = wp_get_post_terms($post_id, $tax_name, ['fields' => 'names']);
+                        if (!empty($terms) && !is_wp_error($terms)) {
+                            $taxonomies[$tax_name] = $terms;
+                        }
+                    }
+                }
+
+                // Custom fields (non-internal or public meta)
+                $custom_fields = [];
+                $all_meta = get_post_meta($post_id);
+                if (is_array($all_meta)) {
+                    foreach ($all_meta as $key => $values) {
+                        if (str_starts_with($key, '_')) {
+                            continue; // Skip WordPress internal meta
+                        }
+                        $val = maybe_unserialize($values[0] ?? '');
+                        $custom_fields[$key] = $val;
+                    }
+                }
+
+                // Block outline builder
+                $outline_builder = function ($blocks_array, $parent_path = '') use (&$outline_builder) {
+                    $outline = [];
+                    foreach ($blocks_array as $index => $block) {
+                        if (empty($block['blockName']) && empty(trim($block['innerHTML'] ?? ''))) {
+                            continue;
+                        }
+                        $current_path = $parent_path === '' ? (string) $index : $parent_path . '.' . $index;
+                        $inner_text = wp_strip_all_tags($block['innerHTML'] ?? '');
+                        $preview_text = wp_trim_words($inner_text, 15, '...');
+
+                        $item = [
+                            'path' => $current_path,
+                            'name' => $block['blockName'] ?: 'core/freeform',
+                            'attrs' => !empty($block['attrs']) ? $block['attrs'] : new \stdClass(),
+                            'preview' => $preview_text,
+                            'inner_blocks_count' => !empty($block['innerBlocks']) ? count($block['innerBlocks']) : 0,
+                        ];
+
+                        if (!empty($block['innerBlocks'])) {
+                            $item['inner_blocks'] = $outline_builder($block['innerBlocks'], $current_path);
+                        }
+
+                        $outline[] = $item;
+                    }
+                    return $outline;
+                };
+
+                $blocks = parse_blocks($post->post_content);
+                $block_outline = $outline_builder($blocks);
+
+                $plain_text = wp_strip_all_tags($post->post_content);
+
+                return [
+                    'success' => true,
+                    'id' => $post_id,
+                    'title' => $post->post_title,
+                    'slug' => $post->post_name,
+                    'post_type' => $post->post_type,
+                    'status' => $post->post_status,
+                    'date' => $post->post_date,
+                    'modified' => $post->post_modified,
+                    'permalink' => get_permalink($post_id),
+                    'author' => $author_data,
+                    'template' => $template,
+                    'featured_image' => $featured_image,
+                    'taxonomies' => $taxonomies,
+                    'custom_fields' => $custom_fields,
+                    'has_blocks' => has_blocks($post->post_content),
+                    'total_top_level_blocks' => count($block_outline),
+                    'block_outline' => $block_outline,
+                    'stats' => [
+                        'word_count' => str_word_count($plain_text),
+                        'char_count' => mb_strlen($plain_text),
+                    ],
+                ];
+            },
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
+            'meta' => [
+                'annotations' => [
+                    'readonly' => true,
+                    'destructive' => false,
+                    'idempotent' => true,
+                ],
+            ],
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'post_id' => [
+                        'type' => 'integer',
+                        'description' => 'The ID of the post or page to inspect.',
+                    ],
+                    'url' => [
+                        'type' => 'string',
+                        'description' => 'The public URL or permalink of the post/page (used if post_id is not provided).',
+                    ],
+                ],
+            ],
+        ]);
     }
 }

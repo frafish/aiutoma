@@ -27,6 +27,10 @@ class Abilities {
             }
         }
 
+        if (function_exists('wp_has_ability') && wp_has_ability($name)) {
+            return;
+        }
+
         if (function_exists('wp_register_ability')) {
             wp_register_ability($name, $args);
         }

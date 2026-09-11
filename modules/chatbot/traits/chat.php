@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 trait Chat {
     public function handle_chatbot_request(\WP_REST_Request $request) {
-        if (!get_option('aiutoma_chatbot_enabled', 0)) {
+        if (!get_option('aiutoma_chatbot_enabled', 1)) {
             return new \WP_Error('chatbot_disabled', 'Chatbot is currently disabled.', ['status' => 403]);
         }
         if (!class_exists('\WordPress\AiClient\AiClient')) {
@@ -714,7 +714,6 @@ trait Chat {
         
         $all_abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
         $all_abilities = apply_filters('aiutoma/abilities', $all_abilities);
-        $all_abilities = apply_filters('wizard_blocks_ai_abilities', $all_abilities);
         
         if (class_exists('\WP_AI_Client_Ability_Function_Resolver') && !empty($all_abilities)) {
             $resolver = new \WP_AI_Client_Ability_Function_Resolver(...$all_abilities);
@@ -1269,6 +1268,7 @@ trait Chat {
                         'reply' => $display_text,
                         'session_id' => $session_id,
                         'frontend_actions' => $frontend_actions,
+                        'manual_mode' => false,
                         'date_gmt' => current_time('mysql', 1)
                     ]);
                 } catch (\Exception $e) {
@@ -1331,7 +1331,10 @@ trait Chat {
             $role = 'ai';
             $author = $c->comment_author;
             
-            if ($c->comment_author !== 'Aiutoma' && strpos($c->comment_author, 'Agent') === false) {
+            if ($c->comment_author === 'System') {
+                $role = 'sys';
+                $author = __('System', 'aiutoma');
+            } else if ($c->comment_author !== 'Aiutoma' && strpos($c->comment_author, 'Agent') === false) {
                 // Determine if it's the user or the admin
                 $chat_id = "aiutoma_chatbot_" . $session_id;
                 $stored_email = get_transient($chat_id . '_email');

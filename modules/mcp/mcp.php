@@ -615,39 +615,14 @@ class Mcp
                         }
                     }
                 } elseif ($method === 'resources/list') {
-                    $skills_handler = new class {
-                        use \Aiutoma\Modules\Ai\Traits\Skills;
-                        public function get_all_skills() {
-                            $skills = [];
-                            if (method_exists($this, 'get_builtin_skills')) {
-                                $skills = array_merge($skills, $this->get_builtin_skills());
-                            }
-                            $upload_dir = wp_upload_dir();
-                            $dir = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/skills';
-                            if (is_dir($dir)) {
-                                $files = glob($dir . '/*.{txt,md}', GLOB_BRACE);
-                                if (!empty($files)) {
-                                    foreach ($files as $file) {
-                                        if (basename($file) === 'README.txt') continue;
-                                        $skills[] = [
-                                            'id' => basename($file),
-                                            'is_builtin' => false,
-                                            'content' => file_get_contents($file)
-                                        ];
-                                    }
-                                }
-                            }
-                            return apply_filters('aiutoma/skills', $skills);
-                        }
-                    };
-                    $all_skills = $skills_handler->get_all_skills();
+                    $all_skills = \Aiutoma\Modules\Ai\Ai::instance()->get_all_skills();
                     
                     $resources = [];
                     foreach ($all_skills as $skill) {
                         $resources[] = [
-                            'uri' => 'aiutoma://skills/' . $skill['id'],
-                            'name' => 'Skill: ' . $skill['id'],
-                            'description' => 'AI Skill/Guide instructions for ' . $skill['id'],
+                            'uri' => 'aiutoma://skills/' . ($skill['slug'] ?? $skill['id']),
+                            'name' => 'Skill: ' . ($skill['name'] ?? $skill['id']),
+                            'description' => !empty($skill['description']) ? $skill['description'] : ('AI Skill instructions for ' . ($skill['slug'] ?? $skill['id'])),
                             'mimeType' => 'text/markdown'
                         ];
                     }
@@ -656,47 +631,15 @@ class Mcp
                     $uri = isset($params['uri']) ? $params['uri'] : '';
                     if (strpos($uri, 'aiutoma://skills/') === 0) {
                         $skill_id = str_replace('aiutoma://skills/', '', $uri);
-                        $skills_handler = new class {
-                            use \Aiutoma\Modules\Ai\Traits\Skills;
-                            public function get_all_skills() {
-                                $skills = [];
-                                if (method_exists($this, 'get_builtin_skills')) {
-                                    $skills = array_merge($skills, $this->get_builtin_skills());
-                                }
-                                $upload_dir = wp_upload_dir();
-                                $dir = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/skills';
-                                if (is_dir($dir)) {
-                                    $files = glob($dir . '/*.{txt,md}', GLOB_BRACE);
-                                    if (!empty($files)) {
-                                        foreach ($files as $file) {
-                                            if (basename($file) === 'README.txt') continue;
-                                            $skills[] = [
-                                                'id' => basename($file),
-                                                'is_builtin' => false,
-                                                'content' => file_get_contents($file)
-                                            ];
-                                        }
-                                    }
-                                }
-                                return apply_filters('aiutoma/skills', $skills);
-                            }
-                        };
-                        $all_skills = $skills_handler->get_all_skills();
-                        $found = null;
-                        foreach ($all_skills as $skill) {
-                            if ($skill['id'] === $skill_id) {
-                                $found = $skill['content'];
-                                break;
-                            }
-                        }
+                        $skill = \Aiutoma\Modules\Ai\Ai::instance()->get_skill_by_id($skill_id);
                         
-                        if ($found !== null) {
+                        if ($skill !== null && !empty($skill['content'])) {
                             $response['result'] = [
                                 'contents' => [
                                     [
                                         'uri' => $uri,
                                         'mimeType' => 'text/markdown',
-                                        'text' => $found
+                                        'text' => $skill['content']
                                     ]
                                 ]
                             ];

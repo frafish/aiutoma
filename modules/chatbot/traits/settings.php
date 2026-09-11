@@ -12,6 +12,7 @@ trait Settings
             update_option('aiutoma_chatbot_icon', sanitize_text_field(wp_unslash($_POST['aiutoma_chatbot_icon'] ?? '')));
             update_option('aiutoma_chatbot_color', sanitize_hex_color(wp_unslash($_POST['aiutoma_chatbot_color'] ?? '')));
             update_option('aiutoma_chatbot_position', sanitize_text_field(wp_unslash($_POST['aiutoma_chatbot_position'] ?? '')));
+            update_option('aiutoma_chatbot_enabled', isset($_POST['aiutoma_chatbot_enabled']) ? 1 : 0);
 
             $name = sanitize_text_field(wp_unslash($_POST['aiutoma_chatbot_name'] ?? ''));
             update_option('aiutoma_chatbot_name', $name);
@@ -20,6 +21,13 @@ trait Settings
             $greeting = sanitize_textarea_field(wp_unslash($_POST['aiutoma_chatbot_greeting'] ?? ''));
             update_option('aiutoma_chatbot_greeting', $greeting);
             do_action('wpml_register_single_string', 'aiutoma', 'chatbot_greeting', $greeting);
+
+            $disclaimer_text = sanitize_textarea_field(wp_unslash($_POST['aiutoma_chatbot_disclaimer_text'] ?? ''));
+            update_option('aiutoma_chatbot_disclaimer_text', $disclaimer_text);
+            do_action('wpml_register_single_string', 'aiutoma', 'chatbot_disclaimer_text', $disclaimer_text);
+
+            update_option('aiutoma_chatbot_show_ai_badge', isset($_POST['aiutoma_chatbot_show_ai_badge']) ? 1 : 0);
+            update_option('aiutoma_chatbot_show_privacy_link', isset($_POST['aiutoma_chatbot_show_privacy_link']) ? 1 : 0);
 
             $contact_msg = sanitize_textarea_field(wp_unslash($_POST['aiutoma_chatbot_contact_msg'] ?? ''));
             update_option('aiutoma_chatbot_contact_msg', $contact_msg);
@@ -85,8 +93,13 @@ trait Settings
         $position = get_option('aiutoma_chatbot_position', 'bottom-right');
 
         $name = get_option('aiutoma_chatbot_name', '');
-        $greeting = get_option('aiutoma_chatbot_greeting', 'Hello! How can I help you today?');
+        $default_greeting = __('Hello! I am an AI assistant for this website. How can I help you today?', 'aiutoma');
+        $greeting = get_option('aiutoma_chatbot_greeting', $default_greeting);
         $contact_msg = get_option('aiutoma_chatbot_contact_msg', '');
+        $default_disclaimer = __('AI assistant • Responses may contain inaccuracies.', 'aiutoma');
+        $disclaimer_text = get_option('aiutoma_chatbot_disclaimer_text', $default_disclaimer);
+        $show_ai_badge = get_option('aiutoma_chatbot_show_ai_badge', 1);
+        $show_privacy_link = get_option('aiutoma_chatbot_show_privacy_link', 1);
         $custom_context = get_option('aiutoma_chatbot_custom_context', '');
         $selected_model = get_option('aiutoma_chatbot_model', '');
         $auto_fallback = get_option('aiutoma_chatbot_auto_fallback', 0);
@@ -152,6 +165,15 @@ trait Settings
                 </h2>
                 <div id="tab-general" class="aiutoma-chatbot-tab-content">
                     <table class="form-table">
+                        <tr>
+                            <th scope="row"><?php esc_html_e('Enable Chatbot', 'aiutoma'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="aiutoma_chatbot_enabled" value="1" <?php checked(get_option('aiutoma_chatbot_enabled', 1), 1); ?>>
+                                    <?php esc_html_e('Enable the chatbot widget on public frontend pages', 'aiutoma'); ?>
+                                </label>
+                            </td>
+                        </tr>
                         <tr>
                             <th scope="row"><?php esc_html_e('AI Model', 'aiutoma'); ?></th>
                             <td>
@@ -274,7 +296,6 @@ trait Settings
 
                         $all_abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
                         $all_abilities = apply_filters('aiutoma/abilities', $all_abilities);
-                        $all_abilities = apply_filters('wizard_blocks_ai_abilities', $all_abilities);
 
                         $grouped_other = [];
                         foreach ($all_abilities as $ab) {
@@ -352,15 +373,15 @@ trait Settings
                                 <td>
                                     <label>
                                         <input type="checkbox" name="aiutoma_chatbot_gdpr_required" value="1" <?php checked(get_option('aiutoma_chatbot_gdpr_required', 1), 1); ?>>
-                                        <?php esc_html_e('Require users to check a privacy consent box before sending a message', 'aiutoma'); ?>
+                                        <?php esc_html_e('Require guest visitors to check a privacy consent box before sending a message (omitted for logged-in users)', 'aiutoma'); ?>
                                     </label>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row"><?php esc_html_e('GDPR Notice Text', 'aiutoma'); ?></th>
+                                <th scope="row"><?php esc_html_e('GDPR Consent Text', 'aiutoma'); ?></th>
                                 <td>
-                                    <textarea name="aiutoma_chatbot_gdpr_text" rows="3" class="aiutoma-chatbot-gdpr-textarea"><?php echo esc_textarea(get_option('aiutoma_chatbot_gdpr_text', 'By chatting, you agree to our processing of conversation logs to assist with your request. See our Privacy for your data rights.')); ?></textarea>
-                                    <p class="description"><?php esc_html_e('Enter the text to display in the GDPR consent notice.', 'aiutoma'); ?></p>
+                                    <textarea name="aiutoma_chatbot_gdpr_text" rows="3" class="aiutoma-chatbot-gdpr-textarea"><?php echo esc_textarea(get_option('aiutoma_chatbot_gdpr_text', 'I agree to the processing of conversation data in accordance with the Privacy Policy.')); ?></textarea>
+                                    <p class="description"><?php esc_html_e('Consent label displayed next to the checkbox for guest visitors. A link to your WordPress Privacy Policy will automatically be included.', 'aiutoma'); ?></p>
                                 </td>
                             </tr>
                             <?php if (class_exists('WooCommerce')): ?>
@@ -480,17 +501,53 @@ trait Settings
                         </table>
                     </div>
                     <div id="tab-content" class="aiutoma-chatbot-tab-content" style="display:none;">
+                        <div class="notice notice-info inline" style="margin: 15px 0; border-left-color: #2271b1;">
+                            <p>
+                                <strong><?php esc_html_e('EU AI Act (Art. 50) Compliance:', 'aiutoma'); ?></strong>
+                                <?php esc_html_e('Deployers of AI systems interacting directly with natural persons are legally required to inform users that they are communicating with an AI system. Ensure the settings below clearly identify the artificial nature of this assistant.', 'aiutoma'); ?>
+                            </p>
+                        </div>
                         <table class="form-table">
                             <tr>
                                 <th scope="row"><?php esc_html_e('Chatbot Name', 'aiutoma'); ?></th>
                                 <td>
                                     <input type="text" name="aiutoma_chatbot_name" value="<?php echo esc_attr($name); ?>" class="regular-text" placeholder="AI Bot">
+                                    <p class="description"><?php esc_html_e('The display name for the chatbot. Under EU AI Act Art. 50, it is strongly recommended to keep an AI indicator in the name or enable the AI Badge.', 'aiutoma'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><?php esc_html_e('Show AI Badge', 'aiutoma'); ?></th>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="aiutoma_chatbot_show_ai_badge" value="1" <?php checked($show_ai_badge, 1); ?>>
+                                        <?php esc_html_e('Display an "AI" badge in the chatbot header to ensure EU AI Act Art. 50 transparency compliance', 'aiutoma'); ?>
+                                    </label>
                                 </td>
                             </tr>
                             <tr>
                                 <th scope="row"><?php esc_html_e('Initial Greeting', 'aiutoma'); ?></th>
                                 <td>
                                     <textarea name="aiutoma_chatbot_greeting" rows="4" class="large-text"><?php echo esc_textarea($greeting); ?></textarea>
+                                    <p class="description"><?php esc_html_e('First message displayed to users when opening the chat. Clearly identify the AI assistant.', 'aiutoma'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><?php esc_html_e('AI & Accuracy Disclaimer', 'aiutoma'); ?></th>
+                                <td>
+                                    <textarea name="aiutoma_chatbot_disclaimer_text" rows="2" class="large-text"><?php echo esc_textarea($disclaimer_text); ?></textarea>
+                                    <p class="description"><?php esc_html_e('Permanent disclaimer displayed at the bottom of the chat window to notify visitors about AI-generated answers and potential inaccuracies (recommended for EU AI Act compliance).', 'aiutoma'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><?php esc_html_e('Privacy Policy Link', 'aiutoma'); ?></th>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="aiutoma_chatbot_show_privacy_link" value="1" <?php checked($show_privacy_link, 1); ?>>
+                                        <?php esc_html_e('Automatically include a link to the site\'s Privacy Policy page in the disclaimer footer', 'aiutoma'); ?>
+                                    </label>
+                                    <?php if (!get_privacy_policy_url()): ?>
+                                        <p class="description" style="color: #d63638;"><?php esc_html_e('Note: No Privacy Policy page is currently configured in WordPress (Settings > Privacy).', 'aiutoma'); ?></p>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>
@@ -500,7 +557,6 @@ trait Settings
                                     <p class="description"><?php esc_html_e('This message will be appended to the AI\'s responses to encourage visitors to leave their email address. It will automatically hide once an email is provided or if the user is logged in.', 'aiutoma'); ?></p>
                                 </td>
                             </tr>
-
                         </table>
                     </div>
 

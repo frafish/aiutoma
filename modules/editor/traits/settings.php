@@ -10,6 +10,10 @@ trait Settings {
             $enable_users = isset($_POST['aiutoma_agent_enable_users']) ? 1 : 0;
             $enable_theme_editor = isset($_POST['aiutoma_agent_enable_theme_editor']) ? 1 : 0;
             $enable_plugin_editor = isset($_POST['aiutoma_agent_enable_plugin_editor']) ? 1 : 0;
+            $ui_mode = isset($_POST['aiutoma_agent_ui_mode']) ? sanitize_text_field(wp_unslash($_POST['aiutoma_agent_ui_mode'])) : 'floating';
+            if (!in_array($ui_mode, ['floating', 'sidebar'], true)) {
+                $ui_mode = 'floating';
+            }
 
             update_option('aiutoma_agent_post_types', $post_types);
             update_option('aiutoma_agent_taxonomies', $taxonomies);
@@ -17,6 +21,7 @@ trait Settings {
             update_option('aiutoma_agent_enable_users', $enable_users);
             update_option('aiutoma_agent_enable_theme_editor', $enable_theme_editor);
             update_option('aiutoma_agent_enable_plugin_editor', $enable_plugin_editor);
+            update_option('aiutoma_agent_ui_mode', $ui_mode);
             echo '<div class="updated"><p>' . esc_html__('Settings saved.', 'aiutoma') . '</p></div>';
         }
 
@@ -26,6 +31,7 @@ trait Settings {
         $enable_users = get_option('aiutoma_agent_enable_users', 1);
         $enable_theme_editor = get_option('aiutoma_agent_enable_theme_editor', 0);
         $enable_plugin_editor = get_option('aiutoma_agent_enable_plugin_editor', 0);
+        $ui_mode = get_option('aiutoma_agent_ui_mode', 'floating');
 
         $all_post_types = get_post_types(['show_ui' => true], 'objects');
         $all_taxonomies = get_taxonomies(['show_ui' => true], 'objects');
@@ -49,6 +55,29 @@ trait Settings {
                     <?php wp_nonce_field('aiutoma_agent_settings', 'aiutoma_agent_settings_nonce'); ?>
                     
                     <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label style="font-weight: 600;"><?php esc_html_e('Interface Mode', 'aiutoma'); ?></label>
+                            </th>
+                            <td>
+                                <fieldset style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ccd0d4; display: flex; flex-direction: column; gap: 12px;">
+                                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                        <input type="radio" name="aiutoma_agent_ui_mode" value="floating" <?php checked($ui_mode, 'floating'); ?> style="margin-top: 2px;">
+                                        <div>
+                                            <strong><?php esc_html_e('Floating Widget (Default)', 'aiutoma'); ?></strong>
+                                            <p class="description" style="margin: 2px 0 0 0;"><?php esc_html_e('Draggable floating circular button in the bottom-right corner that expands into a chat popup.', 'aiutoma'); ?></p>
+                                        </div>
+                                    </label>
+                                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                        <input type="radio" name="aiutoma_agent_ui_mode" value="sidebar" <?php checked($ui_mode, 'sidebar'); ?> style="margin-top: 2px;">
+                                        <div>
+                                            <strong><?php esc_html_e('Gutenberg Sidebar Tab', 'aiutoma'); ?></strong>
+                                            <p class="description" style="margin: 2px 0 0 0;"><?php esc_html_e('Integrated directly into Gutenberg\'s native right sidebar alongside Page/Post and Block tabs. Automatically falls back to floating widget on non-Gutenberg screens.', 'aiutoma'); ?></p>
+                                        </div>
+                                    </label>
+                                </fieldset>
+                            </td>
+                        </tr>
 
                         <tr>
                             <th scope="row">

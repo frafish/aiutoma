@@ -41,7 +41,7 @@ trait History {
             'messages' => $messages,
             'context' => isset($params['context']) && is_array($params['context']) ? $params['context'] : [],
             'session_prompts' => isset($params['session_prompts']) && is_array($params['session_prompts']) ? array_map('sanitize_textarea_field', $params['session_prompts']) : [],
-            'html' => isset($params['html']) ? wp_kses_post($params['html']) : ''
+            'html' => isset($params['html']) ? wp_kses($params['html'], Ui::get_allowed_chat_html()) : ''
         ];
         
         file_put_contents($file_path, json_encode($data));

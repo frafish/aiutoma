@@ -8,6 +8,7 @@ Unlike generic wrapper plugins, Aiutoma is engineered specifically for the WordP
 - **WordPress 7.0 AI API Ready:** Built directly on top of the futuristic native WordPress Core AI Connectors and Abilities API. It doesn't hack its way into your site; it utilizes standardized, official protocols.
 - **Seamless Native UI/UX:** Forget clunky, bloated third-party interfaces. Aiutoma's dashboard, settings, and editor panels are meticulously crafted to blend perfectly into the classic WordPress UI mood. It feels like a feature WordPress shipped out of the box.
 - **Strict Standards Compliance:** Written with clean, secure, and modern PHP 8.1 standards. No heavy external frameworks, no performance dragging. Just perfectly compliant, highly optimized code.
+- **EU AI Act & GDPR Ready by Design:** Built from the ground up to respect European regulations (Regulation (EU) 2024/1689). Meets Article 50 transparency requirements out of the box with persistent AI badges, accuracy disclaimers, clear human operator handovers, and Privacy Policy links.
 
 ## 🚀 The Complete AI Suite
 
@@ -35,8 +36,17 @@ Keep track of everything. Provide external AI agents, Zapier flows, or backgroun
 ### 8. 🧠 RAG Knowledge Base
 Give your AI true, deep context. Automatically sync your posts, WooCommerce products, and user data into a high-performance, local SQLite vector database. Your AI will always know your exact inventory and data.
 
-### 9. 💬 Frontend Chatbot
-Empower your visitors. Deploy a sleek, lightning-fast frontend chat interface powered by your RAG embeddings to provide instant customer support, smart WooCommerce recommendations, and guided user experiences.
+### 9. 💬 Frontend Chatbot (EU AI Act Ready)
+Empower your visitors with total legal confidence. Deploy a sleek, lightning-fast frontend chat widget powered by your RAG embeddings to provide instant customer support, smart WooCommerce recommendations, and guided user experiences:
+- **EU AI Act (Art. 50) Transparency:** Built-in permanent AI indicator badges and accuracy disclaimers ensure users always know they are chatting with an AI system.
+- **Human-in-the-Loop Handover:** Seamlessly take over live chats from the admin dashboard with real-time system notices informing visitors when an operator joins or leaves.
+- **Privacy & GDPR Controls:** Session tracking controls, customizable consent checkboxes, and automated Privacy Policy page integration.
+
+## 🇪🇺 EU AI Act Compliance (Regulation (EU) 2024/1689)
+Aiutoma is engineered to keep your website legally compliant as an AI deployer under European law:
+- **Risk Classification:** Aiutoma operates as a **Limited Risk** AI system. It does not engage in prohibited practices (Art. 5) or high-risk decision-making (Art. 6 / Annex III).
+- **Article 50 Transparency Obligations:** Natural persons are clearly and continuously informed that they are interacting with an AI system through visible header badges, explicit initial greetings, and persistent accuracy disclaimers.
+- **Human Editorial Oversight:** Backend generation tools (Gutenberg agent, SEO, and Playground) require explicit human review and publication, fulfilling the oversight standards of Art. 50(4).
 
 ## 🛠️ Setup & Requirements
 - **Requires:** WordPress 6.0+, PHP 8.1+

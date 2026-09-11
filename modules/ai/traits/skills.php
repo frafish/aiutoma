@@ -23,7 +23,54 @@ trait Skills {
         });
     }
 
-    private function get_builtin_skills() {
+    public function extract_skill_metadata(string $content, string $fallback_name = ''): array {
+        $name = '';
+        $description = '';
+
+        if (preg_match('/^---\s*\r?\n(.*?)\r?\n---\s*(.*)$/s', $content, $matches)) {
+            $frontmatter = $matches[1];
+            $body = $matches[2];
+
+            if (preg_match('/^name:\s*(.+)$/m', $frontmatter, $m)) {
+                $name = trim(trim($m[1]), '"\'');
+            }
+            if (preg_match('/^description:\s*(.+)$/m', $frontmatter, $m)) {
+                $description = trim(trim($m[1]), '"\'');
+            }
+
+            if (preg_match('/^#\s+(.+)$/m', $body, $m)) {
+                $h1 = trim($m[1]);
+                if (!empty($h1)) {
+                    $name = $h1;
+                }
+            }
+        } else {
+            if (preg_match('/^#\s+(.+)$/m', $content, $m)) {
+                $name = trim($m[1]);
+            }
+            $lines = explode("\n", $content);
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if (!empty($trimmed) && strpos($trimmed, '#') !== 0 && strpos($trimmed, '---') !== 0) {
+                    $description = wp_trim_words($trimmed, 30);
+                    break;
+                }
+            }
+        }
+
+        if (empty($name)) {
+            $clean_fallback = preg_replace('/^(builtin_)/', '', $fallback_name);
+            $clean_fallback = preg_replace('/\.(md|txt)$/', '', $clean_fallback);
+            $name = ucwords(str_replace(['-', '_'], ' ', $clean_fallback));
+        }
+
+        return [
+            'name' => $name,
+            'description' => $description,
+        ];
+    }
+
+    public function get_builtin_skills(): array {
         $skills = [];
         $builtin_dir = dirname(dirname(__FILE__)) . '/skills';
         
@@ -50,8 +97,13 @@ trait Skills {
                             }, $content);
                         }
                         
+                        $meta = $this->extract_skill_metadata($content, $skill_name);
+
                         $skills[] = [
                             'id' => 'builtin_' . $skill_name . '.md',
+                            'slug' => $skill_name,
+                            'name' => $meta['name'],
+                            'description' => $meta['description'],
                             'is_builtin' => true,
                             'content' => $content
                         ];
@@ -63,7 +115,7 @@ trait Skills {
         return $skills;
     }
 
-    private function get_skills_dir() {
+    public function get_skills_dir(): string {
         $upload_dir = wp_upload_dir();
         $dir = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/skills';
         if (!is_dir($dir)) {
@@ -72,24 +124,79 @@ trait Skills {
         return $dir;
     }
 
-    public function api_get_skills(\WP_REST_Request $request) {
-        $dir = $this->get_skills_dir();
-        $files = glob($dir . '/*.{txt,md}', GLOB_BRACE);
+    public function get_all_skills(): array {
         $skills = $this->get_builtin_skills();
-        
-        if (!empty($files)) {
-            foreach ($files as $file) {
-                if (basename($file) === 'README.txt') continue;
-                $skills[] = [
-                    'id' => basename($file),
-                    'is_builtin' => false,
-                    'content' => file_get_contents($file)
-                ];
+        $dir = $this->get_skills_dir();
+
+        if (is_dir($dir)) {
+            $files = glob($dir . '/*.{txt,md}', GLOB_BRACE);
+            if (!empty($files)) {
+                foreach ($files as $file) {
+                    $filename = basename($file);
+                    if ($filename === 'README.txt') continue;
+                    $content = file_get_contents($file);
+                    $meta = $this->extract_skill_metadata($content, $filename);
+                    $skills[] = [
+                        'id' => $filename,
+                        'slug' => preg_replace('/\.(md|txt)$/i', '', $filename),
+                        'name' => $meta['name'],
+                        'description' => $meta['description'],
+                        'is_builtin' => false,
+                        'content' => $content
+                    ];
+                }
             }
         }
-        
-        $skills = apply_filters('aiutoma/skills', $skills);
-        
+
+        return apply_filters('aiutoma/skills', $skills);
+    }
+
+    public function get_all_skills_summary(): array {
+        $skills = $this->get_all_skills();
+        $summary = [];
+        foreach ($skills as $skill) {
+            $words = preg_split('/\s+/', trim($skill['content'] ?? ''));
+            $tokens = ceil(count($words) / 0.75);
+            $summary[] = [
+                'id' => $skill['id'],
+                'slug' => $skill['slug'] ?? preg_replace('/\.(md|txt)$/i', '', preg_replace('/^(builtin_)/', '', $skill['id'])),
+                'name' => $skill['name'] ?? $skill['id'],
+                'description' => $skill['description'] ?? '',
+                'is_builtin' => !empty($skill['is_builtin']),
+                'estimated_tokens' => (int) $tokens,
+            ];
+        }
+        return $summary;
+    }
+
+    public function get_skill_by_id(string $id): ?array {
+        $skills = $this->get_all_skills();
+        $clean_id = strtolower(trim($id));
+        $clean_id_normalized = preg_replace('/^(builtin_)/', '', $clean_id);
+        $clean_id_normalized = preg_replace('/\.(md|txt)$/', '', $clean_id_normalized);
+        $clean_id_normalized = str_replace('_', '-', $clean_id_normalized);
+
+        foreach ($skills as $skill) {
+            if ($skill['id'] === $id || (!empty($skill['slug']) && $skill['slug'] === $id)) {
+                return $skill;
+            }
+            $skill_slug = strtolower($skill['slug'] ?? '');
+            $skill_id_norm = preg_replace('/^(builtin_)/', '', strtolower($skill['id']));
+            $skill_id_norm = preg_replace('/\.(md|txt)$/', '', $skill_id_norm);
+            $skill_id_norm = str_replace('_', '-', $skill_id_norm);
+
+            if ($skill_slug === $clean_id_normalized || $skill_id_norm === $clean_id_normalized) {
+                return $skill;
+            }
+            if (!empty($skill['name']) && strtolower($skill['name']) === $clean_id) {
+                return $skill;
+            }
+        }
+        return null;
+    }
+
+    public function api_get_skills(\WP_REST_Request $request) {
+        $skills = $this->get_all_skills();
         return new \WP_REST_Response(['success' => true, 'skills' => $skills], 200);
     }
 
@@ -190,54 +297,28 @@ trait Skills {
         <?php
     }
     public function get_ai_skills($enabled_skills = null) {
-        $skills_text = "";
-        $upload_dir = wp_upload_dir();
-        $skills_dir = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/skills';
-        
-        // Auto-create directory if it doesn't exist
-        if (!is_dir($skills_dir)) {
-            wp_mkdir_p($skills_dir);
-            // Optionally, create a readme file inside
-            file_put_contents($skills_dir . '/README.txt', "Drop your .txt or .md files here to give custom skills to your AI Agents.\nFor example, create a 'how_to_create_blocks.txt' and describe your block architecture preferences.");
+        if (is_array($enabled_skills) && empty($enabled_skills)) {
+            return "";
         }
-        
-        if (is_dir($skills_dir)) {
-            $files = glob($skills_dir . '/*.{txt,md}', GLOB_BRACE);
-            $has_custom = !empty($files) && count(array_filter($files, function($f) { return basename($f) !== 'README.txt'; })) > 0;
-            
-            if ($has_custom || method_exists($this, 'get_builtin_skills')) {
-                $raw_skills = [];
-                
-                if (method_exists($this, 'get_builtin_skills')) {
-                    $raw_skills = array_merge($raw_skills, $this->get_builtin_skills());
-                }
-                
-                if (!empty($files)) {
-                    foreach ($files as $file) {
-                        if (basename($file) === 'README.txt') continue;
-                        $raw_skills[] = [
-                            'id' => basename($file),
-                            'content' => file_get_contents($file)
-                        ];
+
+        $skills_text = "";
+        $all_skills = $this->get_all_skills();
+
+        if (!empty($all_skills)) {
+            $has_skills = false;
+            foreach ($all_skills as $skill) {
+                if (is_array($enabled_skills)) {
+                    $slug = $skill['slug'] ?? '';
+                    if (!in_array($skill['id'], $enabled_skills, true) && !in_array($slug, $enabled_skills, true)) {
+                        continue;
                     }
                 }
-                
-                $raw_skills = apply_filters('aiutoma/skills', $raw_skills);
-                
-                if (!empty($raw_skills)) {
-                    $has_skills = false;
-                    foreach ($raw_skills as $skill) {
-                        if (is_array($enabled_skills) && !in_array($skill['id'], $enabled_skills)) {
-                            continue; // Skip if not explicitly requested
-                        }
-                        if (!$has_skills) {
-                            $skills_text .= "\n\nCUSTOM SKILLS & INSTRUCTIONS:\n";
-                            $has_skills = true;
-                        }
-                        $skills_text .= "--- Skill: " . $skill['id'] . " ---\n";
-                        $skills_text .= $skill['content'] . "\n\n";
-                    }
+                if (!$has_skills) {
+                    $skills_text .= "\n\nCUSTOM SKILLS & INSTRUCTIONS:\n";
+                    $has_skills = true;
                 }
+                $skills_text .= "--- Skill: " . ($skill['name'] ?: $skill['id']) . " ---\n";
+                $skills_text .= $skill['content'] . "\n\n";
             }
         }
         return $skills_text;

@@ -68,6 +68,7 @@ class Ai
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets'], 5);
         add_action('admin_notices', [$this, 'display_low_token_alert']);
         add_action('wp_ajax_aiutoma_dismiss_low_token_alert', [$this, 'ajax_dismiss_low_token_alert']);
+        add_action('updated_option', [$this, 'on_option_updated'], 10, 1);
     }
 
 
@@ -402,11 +403,21 @@ class Ai
         return apply_filters('aiutoma_toggle_safe_mode_response', $default_response, $request);
     }
 
+    public function on_option_updated($option)
+    {
+        if (strpos($option, 'api_key') !== false || strpos($option, 'connector') !== false || strpos($option, 'aiutoma_enabled_models') !== false) {
+            delete_transient('aiutoma_client_models');
+            delete_transient('aiutoma_client_models_vision');
+        }
+    }
+
     public function save_ai_models_settings(\WP_REST_Request $request)
     {
         $enabled_models = $request->get_param('enabled_models');
         if (is_array($enabled_models)) {
             update_option('aiutoma_enabled_models', $enabled_models);
+            delete_transient('aiutoma_client_models');
+            delete_transient('aiutoma_client_models_vision');
         }
 
         $budget_cap = $request->get_param('budget_cap');
@@ -536,18 +547,31 @@ class Ai
         delete_transient('aiutoma_client_models_vision');
     }
 
-    public function get_ai_models(\WP_REST_Request $request)
+    public function has_ai_models()
+    {
+        $cached_models = get_transient('aiutoma_client_models');
+        if ($cached_models !== false && is_array($cached_models) && !empty($cached_models)) {
+            return true;
+        }
+
+        $response = $this->get_ai_models();
+        if ($response instanceof \WP_REST_Response) {
+            $data = $response->get_data();
+            return !empty($data['models']);
+        }
+        return false;
+    }
+
+    public function get_ai_models(?\WP_REST_Request $request = null)
     {
         if (class_exists('\WordPress\AiClient\AiClient')) {
             // Providers are automatically loaded via register_subplugins_providers on init
-
-            // Caching removed to ensure real-time model discovery for local and newly added providers
 
             $registry = \WordPress\AiClient\AiClient::defaultRegistry();
 
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $forceRefresh = isset($_GET['refresh']) && sanitize_text_field(wp_unslash($_GET['refresh'])) === '1';
-            $is_vision = $request->get_param('vision') === '1';
+            $is_vision = $request ? ($request->get_param('vision') === '1') : false;
             $transient_key = $is_vision ? 'aiutoma_client_models_vision' : 'aiutoma_client_models';
 
             if (!$forceRefresh) {
@@ -571,7 +595,7 @@ class Ai
                 }
             }
 
-            if ($request->get_param('vision') === '1') {
+            if ($is_vision) {
                 $capabilities = [
                     \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::textGeneration()
                 ];

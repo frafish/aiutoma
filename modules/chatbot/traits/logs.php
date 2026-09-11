@@ -268,22 +268,25 @@ trait Logs {
                 echo '<div id="aiutoma_chat_history_container">';
                 foreach ($comments as $c) {
                     $is_ai = $c->comment_author === 'Aiutoma';
-                    $msg_class = $is_ai ? 'aiutoma-chatbot-msg-ai' : 'aiutoma-chatbot-msg-user';
+                    $is_sys = $c->comment_author === 'System';
+                    $is_op = strpos($c->comment_author, 'Operator') !== false;
                     
-                    if (strpos($c->comment_author, 'Operator') !== false) {
+                    if ($is_sys) {
+                        $msg_class = 'aiutoma-chatbot-msg-system';
+                        $author_name_html = '<em>' . esc_html__('System Notice', 'aiutoma') . '</em>';
+                    } else if ($is_op) {
                         $msg_class = 'aiutoma-chatbot-msg-operator';
-                    }
-                    
-                    if ($is_ai) {
+                        $author_name_html = esc_html($c->comment_author);
+                    } else if ($is_ai) {
+                        $msg_class = 'aiutoma-chatbot-msg-ai';
                         $ai_name = get_option('aiutoma_chatbot_name', 'AI Bot');
                         if (empty($ai_name)) {
                             $ai_name = 'AI Bot';
                         }
                         $ai_name = apply_filters('wpml_translate_single_string', $ai_name, 'aiutoma', 'chatbot_name');
                         $author_name_html = esc_html($ai_name);
-                    } else if (strpos($c->comment_author, 'Operator') !== false) {
-                        $author_name_html = esc_html($c->comment_author);
                     } else {
+                        $msg_class = 'aiutoma-chatbot-msg-user';
                         $author_display = ($c->comment_author === 'Visitor') ? 'You' : $c->comment_author;
                         $author_name_html = esc_html($author_display);
                         if (!empty($c->user_id) && $c->user_id > 0) {
@@ -563,6 +566,40 @@ trait Logs {
             set_transient('aiutoma_chatbot_manual_' . $session_id, 1, 12 * HOUR_IN_SECONDS);
         } else {
             delete_transient('aiutoma_chatbot_manual_' . $session_id);
+        }
+
+        // Insert a system notice for the handover
+        global $wpdb;
+        $post_id = (int) $wpdb->get_var($wpdb->prepare("
+            SELECT c.comment_post_ID 
+            FROM {$wpdb->comments} c
+            INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id
+            WHERE m.meta_key = 'aiutoma_session_id' AND m.meta_value = %s
+            LIMIT 1
+        ", $session_id));
+
+        $current_user = wp_get_current_user();
+        $operator_label = $current_user->exists() ? $current_user->display_name : __('Operator', 'aiutoma');
+        
+        $notice_text = $manual 
+            ? sprintf(__('A human operator (%s) has joined the chat.', 'aiutoma'), $operator_label)
+            : __('The human operator has left the chat. The AI assistant is active again.', 'aiutoma');
+
+        $comment_id = wp_insert_comment([
+            'comment_post_ID' => $post_id,
+            'comment_author' => 'System',
+            'comment_author_email' => '',
+            'comment_author_url' => '',
+            'comment_parent' => 0,
+            'user_id' => 0,
+            'comment_content' => wp_slash($notice_text),
+            'comment_type' => 'aiutoma_chat',
+            'comment_approved' => 1
+        ]);
+
+        if ($comment_id) {
+            update_comment_meta($comment_id, 'aiutoma_session_id', $session_id);
+            update_comment_meta($comment_id, 'aiutoma_chat_log', 1);
         }
 
         return new \WP_REST_Response(['success' => true], 200);

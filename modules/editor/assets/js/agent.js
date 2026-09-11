@@ -15,7 +15,10 @@ jQuery(document).ready(function($) {
     let dragStartX, dragStartY;
     let initialX, initialY;
 
+    const isSidebarMode = (typeof aiutomaAgentData !== 'undefined' && aiutomaAgentData.uiMode === 'sidebar');
+
     $header.on('mousedown', function(e) {
+        if ($chatbot.hasClass('aiutoma-agent-in-sidebar')) return;
         if ($(e.target).closest('button').length) return;
         
         isDragging = true;
@@ -97,6 +100,7 @@ jQuery(document).ready(function($) {
     });
 
     $header.on('click', function(e) {
+        if ($chatbot.hasClass('aiutoma-agent-in-sidebar')) return;
         if (hasDragged) return;
         if ($(e.target).closest('#aiutoma-agent-settings-toggle').length) return;
         
@@ -179,11 +183,35 @@ jQuery(document).ready(function($) {
             const blockEditor = wp.data.select('core/block-editor');
             if (blockEditor) {
                 const selected = blockEditor.getSelectedBlockClientIds();
-                if (selected && selected.length > 0) {
-                    lastSelectedBlockClientIds = selected;
-                }
+                lastSelectedBlockClientIds = selected || [];
             }
         });
+    }
+
+    function buildLiveBlockStructure(blocks, parentPath = '') {
+        return (blocks || []).map((block, index) => {
+            const path = parentPath ? `${parentPath}.${index}` : `${index}`;
+            return {
+                client_id: block.clientId,
+                path,
+                name: block.name,
+                attrs: block.attributes || {},
+                child_count: (block.innerBlocks || []).length,
+                inner_blocks: buildLiveBlockStructure(block.innerBlocks || [], path)
+            };
+        });
+    }
+
+    function findLiveBlockPath(blocks, targetClientId, parentPath = '') {
+        for (let index = 0; index < (blocks || []).length; index++) {
+            const block = blocks[index];
+            const path = parentPath ? `${parentPath}.${index}` : `${index}`;
+            if (block.clientId === targetClientId) return path;
+
+            const childPath = findLiveBlockPath(block.innerBlocks || [], targetClientId, path);
+            if (childPath) return childPath;
+        }
+        return null;
     }
 
     function gatherContext() {
@@ -238,6 +266,9 @@ jQuery(document).ready(function($) {
         } else if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/block-editor')) {
             const blockEditorData = wp.data.select('core/block-editor');
             const blocks = blockEditorData.getBlocks();
+
+            context += "LIVE GUTENBERG CANVAS (current browser state, including unsaved changes):\n";
+            context += "The following content is the authoritative state of the active editor. Do not use saved post content when interpreting this request.\n\n";
             
             const passTheme = document.getElementById('aiutoma-agent-pass-theme');
             if (passTheme && passTheme.checked) {
@@ -258,24 +289,12 @@ jQuery(document).ready(function($) {
             }
 
             
-            function findPostContentClientId(blocksList) {
-                if (!blocksList) return null;
-                for (const block of blocksList) {
-                    if (block.name === 'core/post-content') return block.clientId;
-                    if (block.innerBlocks && block.innerBlocks.length > 0) {
-                        const found = findPostContentClientId(block.innerBlocks);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-            
             if (blocks && blocks.length > 0) {
-                const postContentId = findPostContentClientId(blocks);
-                const targetBlocks = postContentId ? wp.data.select('core/block-editor').getBlocks(postContentId) : blocks;
-                content = wp.blocks.serialize(targetBlocks);
+                content = wp.blocks.serialize(blocks);
             }
-            if (content) context += "Content:\n" + content + "\n\n";
+            context += "LIVE PAGE STRUCTURE (client_id values are valid only in this browser session; use path values when reasoning about structure):\n";
+            context += JSON.stringify(buildLiveBlockStructure(blocks)) + "\n\n";
+            if (content) context += "LIVE PAGE CONTENT:\n" + content + "\n\n";
             
             let selectedBlocks = [];
             if (lastSelectedBlockClientIds.length > 0) {
@@ -284,7 +303,14 @@ jQuery(document).ready(function($) {
             
             if (selectedBlocks && selectedBlocks.length > 0) {
                 const selectedContent = wp.blocks.serialize(selectedBlocks);
-                context += "CURRENTLY SELECTED BLOCKS (The user has highlighted these blocks in the editor. If the user asks to 'change this' or 'rewrite this', they are referring to these blocks. Please prioritize modifying them):\n" + selectedContent + "\n\n";
+                const selectedDetails = selectedBlocks.map(block => ({
+                    client_id: block.clientId,
+                    path: findLiveBlockPath(blocks, block.clientId),
+                    name: block.name,
+                    attrs: block.attributes || {}
+                }));
+                context += "CURRENTLY SELECTED BLOCKS (The user has highlighted these blocks in the live editor. If the user asks to change or rewrite this, refer to these blocks):\n";
+                context += JSON.stringify(selectedDetails) + "\n" + selectedContent + "\n\n";
             }
             
             if (wp.blocks && wp.blocks.getBlockTypes) {
@@ -318,7 +344,7 @@ jQuery(document).ready(function($) {
                 }
             } catch (e) {}
             
-            context += "CRITICAL INSTRUCTION: You are interacting directly with the active Gutenberg Block Editor. By default, you MUST NEVER replace the full page content unless explicitly asked. Always prefer to APPEND new blocks (or insert them at the current position). To INSERT or APPEND new blocks, you MUST output the raw Gutenberg HTML inside a ```gutenberg-insert code block. Do NOT use standard ```html blocks.\n\nCRITICAL RULE FOR BLOCKS: You MUST PRESERVE AND INCLUDE ALL Gutenberg structural comments (e.g., <!-- wp:columns -->, <!-- wp:heading -->, <!-- /wp:columns -->). NEVER strip them out. If you only output the raw HTML tags (like <div>) without the <!-- wp: --> comments, the editor will fail to parse them as individual blocks and will group them into a single uneditable HTML block. The inner HTML MUST perfectly match the block wrapper comments. For complex layouts like columns, you MUST use the exact structure with the `wp-block-columns` and `wp-block-column` wrapper divs AND their corresponding <!-- wp:column --> comments.\nTo completely REPLACE the entire page content, use a ```gutenberg-replace code block.\nTo EDIT and REPLACE the user's currently selected block(s), use a ```gutenberg-edit code block. \nIMPORTANT: ALWAYS use these markdown code blocks and NEVER strip the <!-- wp: --> tags!\nIf you cannot perfectly remember the exact HTML wrapper for a complex core block, it is safer to use a `core/html` block and insert standard raw HTML.\n";
+            context += "CRITICAL INSTRUCTION: You are interacting directly with the active Gutenberg Block Editor. The LIVE GUTENBERG CANVAS above is authoritative, including unsaved changes. By default, you MUST NEVER replace the full page content unless explicitly asked. Always prefer to APPEND new blocks (or insert them at the current position). To INSERT or APPEND new blocks, you MUST output the raw Gutenberg HTML inside a ```gutenberg-insert code block. Do NOT use standard ```html blocks.\n\nCRITICAL RULE FOR BLOCKS: You MUST PRESERVE AND INCLUDE ALL Gutenberg structural comments (e.g., <!-- wp:columns -->, <!-- wp:heading -->, <!-- /wp:columns -->). NEVER strip them out. If you only output the raw HTML tags (like <div>) without the <!-- wp: --> comments, the editor will fail to parse them as individual blocks and will group them into a single uneditable HTML block. The inner HTML MUST perfectly match the block wrapper comments. For complex layouts like columns, you MUST use the exact structure with the `wp-block-columns` and `wp-block-column` wrapper divs AND their corresponding <!-- wp:column --> comments.\nTo completely REPLACE the entire page content, use a ```gutenberg-replace code block.\nTo EDIT and REPLACE the user's currently selected block(s), use a ```gutenberg-edit code block. \nIMPORTANT: ALWAYS use these markdown code blocks and NEVER strip the <!-- wp: --> tags!\nIf you cannot perfectly remember the exact HTML wrapper for a complex core block, it is safer to use a `core/html` block and insert standard raw HTML.\n";
         } else {
             content = $('#content').val() || $('#description').val() || '';
             if (content) context += "Content/Description:\n" + content + "\n";
@@ -727,4 +753,160 @@ jQuery(document).ready(function($) {
             }
         }, 3000);
     }
+
+    // --- Gutenberg Native Sidebar Integration ---
+    function setupGutenbergSidebar() {
+        if (!isSidebarMode) return;
+
+        const isGutenberg = typeof wp !== 'undefined' && wp.blocks && wp.data;
+        if (!isGutenberg) {
+            $chatbot.addClass('aiutoma-agent-fallback-floating');
+            return;
+        }
+
+        let isAiutomaActive = false;
+
+        function getTabList() {
+            return $('.editor-sidebar__panel-tabs [role="tablist"], .interface-complementary-area-header [role="tablist"]');
+        }
+
+        function activateAiutomaTab() {
+            isAiutomaActive = true;
+            const $tabBtn = $('#aiutoma-agent-tab-btn');
+            const $tabList = getTabList();
+            const $panel = $('#aiutoma-agent-sidebar-panel');
+
+            // Select Aiutoma tab button
+            $tabBtn.attr('aria-selected', 'true').attr('data-active', '').attr('data-composite-item-active', '').addClass('is-active');
+
+            // Deselect sibling Gutenberg tabs (Page, Block, etc.)
+            $tabList.find('button[role="tab"]:not(#aiutoma-agent-tab-btn)').each(function() {
+                $(this).attr('aria-selected', 'false').removeAttr('data-active').removeAttr('data-composite-item-active').removeClass('is-active');
+            });
+
+            // Hide native Gutenberg panels in the complementary area
+            $panel.siblings().not('.editor-sidebar__panel-tabs').not('.interface-complementary-area-header').addClass('aiutoma-hidden-by-agent');
+
+            // Show Aiutoma panel and focus chat prompt
+            $panel.show();
+            $chatbot.removeClass('aiutoma-agent-closed');
+            $body.show();
+            $prompt.focus();
+        }
+
+        function deactivateAiutomaTab() {
+            if (!isAiutomaActive) return;
+            isAiutomaActive = false;
+            const $tabBtn = $('#aiutoma-agent-tab-btn');
+            const $panel = $('#aiutoma-agent-sidebar-panel');
+
+            // Deselect Aiutoma tab button
+            $tabBtn.attr('aria-selected', 'false').removeAttr('data-active').removeAttr('data-composite-item-active').removeClass('is-active');
+
+            // Hide Aiutoma panel
+            $panel.hide();
+
+            // Restore native Gutenberg panels
+            $('.aiutoma-hidden-by-agent').removeClass('aiutoma-hidden-by-agent');
+        }
+
+        function injectSidebarTab() {
+            const $tabList = getTabList();
+            if (!$tabList.length) {
+                return false;
+            }
+
+            const $header = $tabList.closest('.editor-sidebar__panel-tabs, .interface-complementary-area-header');
+
+            // 1. Create or verify Panel exists
+            let $panel = $('#aiutoma-agent-sidebar-panel');
+            if (!$panel.length) {
+                $panel = $('<div id="aiutoma-agent-sidebar-panel" class="editor-sidebar__panel components-panel aiutoma-agent-sidebar-panel" style="display: none;"></div>');
+                $header.after($panel);
+            }
+
+            // Move chatbot into panel if not already inside
+            if (!$panel.has($chatbot).length) {
+                $panel.append($chatbot);
+                $chatbot.addClass('aiutoma-agent-in-sidebar').removeClass('aiutoma-agent-closed');
+                $body.show();
+                $('#aiutoma-agent-model-area').hide();
+            }
+
+            // 2. Create or verify Tab Button exists in tablist
+            let $tabBtn = $('#aiutoma-agent-tab-btn');
+            if (!$tabBtn.length || !$tabList.has($tabBtn).length) {
+                const $siblingTab = $tabList.find('button[role="tab"]').first();
+                let siblingClasses = '';
+                let spanClasses = '';
+
+                if ($siblingTab.length) {
+                    const classes = ($siblingTab.attr('class') || '').split(/\s+/);
+                    siblingClasses = classes.filter(c => c && !c.includes('active') && !c.includes('selected')).join(' ');
+                    const $siblingSpan = $siblingTab.find('span').first();
+                    if ($siblingSpan.length) {
+                        spanClasses = $siblingSpan.attr('class') || '';
+                    }
+                }
+
+                $tabBtn = $(`
+                    <button type="button" role="tab" id="aiutoma-agent-tab-btn" class="aiutoma-agent-sidebar-tab ${siblingClasses}" aria-selected="false" tabindex="-1" data-orientation="horizontal">
+                        <span class="${spanClasses}">
+                            <span class="dashicons dashicons-superhero" style="font-size:15px;width:15px;height:15px;line-height:15px;vertical-align:middle;margin-right:4px;"></span>
+                            Aiutoma
+                        </span>
+                    </button>
+                `);
+
+                $tabList.append($tabBtn);
+
+                $tabBtn.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    activateAiutomaTab();
+                });
+            }
+
+            // If Aiutoma was already active, preserve active state
+            if (isAiutomaActive) {
+                $tabBtn.attr('aria-selected', 'true').attr('data-active', '').attr('data-composite-item-active', '').addClass('is-active');
+                $panel.siblings().not('.editor-sidebar__panel-tabs').not('.interface-complementary-area-header').addClass('aiutoma-hidden-by-agent');
+                $panel.show();
+            }
+
+            return true;
+        }
+
+        // Deactivate Aiutoma when user clicks a native Gutenberg tab (Page, Block, etc.)
+        $(document).on('click', '.editor-sidebar__panel-tabs button[role="tab"]:not(#aiutoma-agent-tab-btn), .interface-complementary-area-header button[role="tab"]:not(#aiutoma-agent-tab-btn)', function() {
+            deactivateAiutomaTab();
+        });
+
+        // Initialize and watch for Gutenberg sidebar rendering via MutationObserver
+        let retryCount = 0;
+        const checkInterval = setInterval(function() {
+            retryCount++;
+            if (injectSidebarTab() || retryCount > 30) {
+                clearInterval(checkInterval);
+                if (retryCount > 30 && !$('#aiutoma-agent-tab-btn').length) {
+                    // Fallback to floating mode if Gutenberg sidebar was never opened
+                    $chatbot.addClass('aiutoma-agent-fallback-floating');
+                }
+            }
+        }, 300);
+
+        // Keep in sync during Gutenberg React re-renders
+        let observerDebounce = null;
+        const observer = new MutationObserver(function() {
+            if (observerDebounce) return;
+            observerDebounce = setTimeout(function() {
+                observerDebounce = null;
+                injectSidebarTab();
+            }, 100);
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    setupGutenbergSidebar();
 });

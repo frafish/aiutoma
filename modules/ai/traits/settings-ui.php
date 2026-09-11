@@ -52,6 +52,13 @@ trait SettingsUi {
                     <tr>
                         <th scope="row"><?php esc_html_e('Active Modules (Experimental & Core)', 'aiutoma'); ?></th>
                         <td>
+                            <?php if (!\Aiutoma\Modules\Ai\Ai::instance()->has_ai_models()): ?>
+                                <div class="notice notice-warning inline" style="margin: 0 0 15px 0; padding: 10px 15px; border-left: 4px solid #dba617; background: #fff;">
+                                    <p style="margin: 0; font-size: 13px;">
+                                        <strong><?php esc_html_e('Nota sui Moduli AI:', 'aiutoma'); ?></strong> <?php esc_html_e('Nessun modello AI risulta configurato o abilitato. I moduli Editor Agent, Frontend Chatbot, SEO e WPML rimangono disattivati finché non viene configurato almeno un modello in Connettori o Modelli AI.', 'aiutoma'); ?>
+                                    </p>
+                                </div>
+                            <?php endif; ?>
                             <fieldset>
                                 <label style="display:block; margin-bottom: 10px;">
                                     <input type="checkbox" name="module_providers" value="1" <?php checked(!empty($active_modules['providers'])); ?>>
