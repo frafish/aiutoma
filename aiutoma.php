@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Plugin Name: AIutoma – The Autonomous AI Assistant
+ * Plugin Name: AIutoma – The AIO Autonomous AI Assistant
  * Description: Autonomous AI assistant and agentic automation suite.
  * Version: 1.0.1
  * Author: frapesce

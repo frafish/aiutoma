@@ -486,8 +486,8 @@ class Ai
 
             if ($percentage >= 80) {
                 $class = $percentage >= 100 ? 'notice-error' : 'notice-warning';
-                /* translators: 1: percentage, 2: used tokens, 3: total budget tokens */
                 $message = sprintf(
+                    /* translators: 1: percentage, 2: used tokens, 3: total budget tokens */
                     __('<strong>Aiutoma Alert:</strong> You have reached %1$.1f%% of your monthly AI token budget (%2$s / %3$s tokens).', 'aiutoma'),
                     $percentage,
                     number_format_i18n($total_tokens),

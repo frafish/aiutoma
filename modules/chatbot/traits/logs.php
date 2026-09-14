@@ -581,9 +581,12 @@ trait Logs {
         $current_user = wp_get_current_user();
         $operator_label = $current_user->exists() ? $current_user->display_name : __('Operator', 'aiutoma');
         
-        $notice_text = $manual 
-            ? sprintf(__('A human operator (%s) has joined the chat.', 'aiutoma'), $operator_label)
-            : __('The human operator has left the chat. The AI assistant is active again.', 'aiutoma');
+        if ($manual) {
+            /* translators: %s: operator name */
+            $notice_text = sprintf(__('A human operator (%s) has joined the chat.', 'aiutoma'), $operator_label);
+        } else {
+            $notice_text = __('The human operator has left the chat. The AI assistant is active again.', 'aiutoma');
+        }
 
         $comment_id = wp_insert_comment([
             'comment_post_ID' => $post_id,

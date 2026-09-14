@@ -1014,7 +1014,10 @@ class Mcp
                         <span>
                             <span class="dashicons dashicons-admin-generic" style="vertical-align: middle; margin-top: -2px; color: #2271b1;"></span>
                             <strong><?php esc_html_e('Developer Extension Active:', 'aiutoma'); ?></strong>
-                            <?php printf(esc_html__('MCP REST requests using your API Key automatically run as site superuser (%s), bypassing the need for Application Passwords.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>'); ?>
+                            <?php
+                            /* translators: %s: user login */
+                            printf(esc_html__('MCP REST requests using your API Key automatically run as site superuser (%s), bypassing the need for Application Passwords.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>');
+                            ?>
                         </span>
                     </p>
                 </div>
@@ -1096,7 +1099,10 @@ class Mcp
                         </h4>
                         <p class="description" style="margin: 0 0 10px 0;">
                             <?php if ($has_dev_extension) : ?>
-                                <?php printf(esc_html__('Developer Extension is active: the prompt below uses your API Key and automatically acts as superuser (%s), bypassing application passwords. You can optionally select another user and enter their Application Password to use Basic Auth instead.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>'); ?>
+                                <?php
+                                /* translators: %s: user login */
+                                printf(esc_html__('Developer Extension is active: the prompt below uses your API Key and automatically acts as superuser (%s), bypassing application passwords. You can optionally select another user and enter their Application Password to use Basic Auth instead.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>');
+                                ?>
                             <?php else : ?>
                                 <?php esc_html_e('Select a user and type or paste their Application Password. The system prompt below will update in real time with the credentials, ready to copy and use in Antigravity or Cursor.', 'aiutoma'); ?>
                             <?php endif; ?>
@@ -1109,11 +1115,10 @@ class Mcp
                                 <select id="aiutoma_prompt_user_select" style="width: 100%; max-width: 100%;">
                                     <?php
                                     foreach ($prompt_users as $p_user) {
-                                        $selected = ($p_user->ID === $selected_prompt_user_id) ? ' selected' : '';
                                         $u_edit_url = get_edit_user_link($p_user->ID) ?: admin_url('user-edit.php?user_id=' . $p_user->ID);
                                         $u_app_url = $u_edit_url . '#application-passwords-section';
                                         ?>
-                                        <option value="<?php echo esc_attr($p_user->user_login); ?>" data-user-id="<?php echo esc_attr($p_user->ID); ?>" data-app-url="<?php echo esc_url($u_app_url); ?>"<?php echo $selected; ?>>
+                                        <option value="<?php echo esc_attr($p_user->user_login); ?>" data-user-id="<?php echo esc_attr($p_user->ID); ?>" data-app-url="<?php echo esc_url($u_app_url); ?>" <?php selected($p_user->ID, $selected_prompt_user_id); ?>>
                                             <?php echo esc_html($p_user->display_name . ' (' . $p_user->user_login . ')'); ?>
                                         </option>
                                         <?php
@@ -1144,7 +1149,10 @@ class Mcp
                             <?php if ($has_dev_extension) : ?>
                                 <span class="dashicons dashicons-admin-generic" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px; color: #2271b1;"></span>
                                 <strong><?php esc_html_e('Developer Extension Active:', 'aiutoma'); ?></strong>
-                                <?php printf(esc_html__('Requests with API Key run as superuser (%s), bypassing Application Passwords. Enter an Application Password above only if you wish to use Basic Auth.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>'); ?>
+                                <?php
+                                /* translators: %s: user login */
+                                printf(esc_html__('Requests with API Key run as superuser (%s), bypassing Application Passwords. Enter an Application Password above only if you wish to use Basic Auth.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>');
+                                ?>
                             <?php else : ?>
                                 <span class="dashicons dashicons-info" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px;"></span>
                                 <?php esc_html_e('Type or paste an Application Password to generate ready-to-use Basic Auth headers in the prompt below.', 'aiutoma'); ?>

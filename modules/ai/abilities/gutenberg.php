@@ -190,9 +190,11 @@ trait Gutenberg
 
             foreach ($blocks as $idx => $b) {
                 if (!is_array($b)) {
+                    /* translators: %d: block index */
                     return new \WP_Error('malformed_block', sprintf(__('Block at index %d is not a valid object.', 'aiutoma'), $idx));
                 }
                 if (!array_key_exists('blockName', $b) && !array_key_exists('innerHTML', $b)) {
+                    /* translators: %d: block index */
                     return new \WP_Error('malformed_block', sprintf(__('Block at index %d is missing blockName and innerHTML.', 'aiutoma'), $idx));
                 }
             }
@@ -417,6 +419,7 @@ trait Gutenberg
 
                     $found = $find_block($blocks, array_map('intval', explode('.', $path)));
                     if (!$found) {
+                        /* translators: %s: block path */
                         return new \WP_Error('block_not_found', sprintf(__('Block not found at path %s.', 'aiutoma'), $path));
                     }
 
@@ -979,6 +982,7 @@ trait Gutenberg
                     }
 
                     if (!$found) {
+                        /* translators: %s: template or pattern identifier */
                         return new \WP_Error('template_not_found', sprintf(__('Template or pattern "%s" not found.', 'aiutoma'), $target_id));
                     }
 
@@ -1079,6 +1083,7 @@ trait Gutenberg
                         'id' => $theme . '//' . $slug,
                         'type' => $type,
                         'slug' => $slug,
+                        /* translators: %s: template type */
                         'message' => sprintf(__('%s created successfully.', 'aiutoma'), ucfirst(str_replace('_', ' ', $type))),
                     ];
                 }
@@ -1149,6 +1154,7 @@ trait Gutenberg
                     }
 
                     if (!$template) {
+                        /* translators: %s: template identifier */
                         return new \WP_Error('template_not_found', sprintf(__('Template "%s" could not be found to update.', 'aiutoma'), $target_id));
                     }
 

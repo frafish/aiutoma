@@ -48,6 +48,7 @@ class AwsProvider extends AbstractApiProvider
         $parts = explode('|', $apiKeyOpt);
         $region = $parts[2] ?? 'us-east-1'; // Fallback a us-east-1 se non specificata
         
+        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- AWS Bedrock API endpoint.
         return 'https://bedrock-runtime.' . $region . '.amazonaws.com/v1';
     }
 

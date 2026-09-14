@@ -59,6 +59,7 @@ trait Chat {
             return new \WP_Error('captcha_missing', 'CAPTCHA verification is required.', ['status' => 403]);
         }
         if (!empty($turnstile_secret) && !empty($turnstile_response)) {
+            // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Cloudflare Turnstile API endpoint.
             $verify = wp_remote_post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
                 'body' => [
                     'secret' => $turnstile_secret,

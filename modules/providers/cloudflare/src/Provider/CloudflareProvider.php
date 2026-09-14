@@ -63,6 +63,7 @@ class CloudflareProvider extends AbstractApiProvider
             'cloudflare',
             'Cloudflare Workers AI',
             ProviderTypeEnum::cloud(),
+            // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Official Cloudflare dashboard link.
             'https://dash.cloudflare.com/',
             RequestAuthenticationMethod::apiKey(),
             'Fast and secure AI models on Cloudflare global network',

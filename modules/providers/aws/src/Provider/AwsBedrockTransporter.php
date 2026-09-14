@@ -274,6 +274,7 @@ class AwsBedrockTransporter implements HttpTransporterInterface
         $modelId = is_array($payloadData) && isset($payloadData['model']) ? $payloadData['model'] : 'anthropic.claude-3-sonnet-20240229-v1:0';
         
         // Build the correct Converse API URL
+        // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- AWS Bedrock API endpoint.
         $url = "https://bedrock-runtime.{$region}.amazonaws.com/model/{$modelId}/converse";
 
         if (!empty($accessKey) && !empty($secretKey)) {

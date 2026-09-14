@@ -113,7 +113,11 @@ trait SettingsUi {
                         <td>
                             <?php if (defined('AIUTOMA_DEV_VERSION')): ?>
                                 <p style="color: #00a32a; font-weight: 600;">
-                                    <span class="dashicons dashicons-yes-alt"></span> <?php printf(esc_html__('Developer Extension is ACTIVE (v%s).', 'aiutoma'), esc_html(AIUTOMA_DEV_VERSION)); ?>
+                                    <span class="dashicons dashicons-yes-alt"></span>
+                                    <?php
+                                    /* translators: %s: version number */
+                                    printf(esc_html__('Developer Extension is ACTIVE (v%s).', 'aiutoma'), esc_html(AIUTOMA_DEV_VERSION));
+                                    ?>
                                 </p>
                                 <p class="description"><?php esc_html_e('Developer abilities (Execute PHP Code, Modify Files, Run WP-CLI) are unlocked with interactive review and rollbacks.', 'aiutoma'); ?></p>
                             <?php else: ?>

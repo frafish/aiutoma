@@ -12,54 +12,24 @@ Aiutoma is an agentic AI assistant designed to seamlessly integrate into your Wo
 
 == Description ==
 
-Welcome to **Aiutoma** — an enterprise-grade AI co-pilot that transforms your WordPress website into an autonomous, intelligent powerhouse. 
+Welcome to **Aiutoma** — an enterprise-grade AI co-pilot that transforms your WordPress website into an autonomous, intelligent powerhouse.
 
-Are you tired of juggling multiple complex automation tools, bloated plugins, and fragmented workflows? **Aiutoma** is a fully-integrated, agentic assistant designed to bring true automation directly to your WordPress and WooCommerce dashboard. Whether you need to generate high-converting content, orchestrate complex automated workflows, provide real-time omnichannel customer support, or expose your site to the world of AI via MCP, Aiutoma handles it all effortlessly.
+Built natively on top of the WordPress 7.0 AI API, Aiutoma brings true agentic automation directly to your WordPress and WooCommerce dashboard.
 
-### ✨ Why Choose Aiutoma?
+### ✨ Key Features
 
-Aiutoma isn't just another ChatGPT wrapper. It is built natively on top of the futuristic WordPress 7.0 AI API. It feels like a core part of WordPress—ensuring a clean, ultra-secure, and lightning-fast experience that never slows down your frontend. Stop working *in* your website and start working *on* your business while Aiutoma handles the heavy lifting.
-
-### 🚀 Powerful Features Included
-
-#### 1. 🦸‍♂️ AI Playground & Automation Hub
-Your centralized command center. Chat with your AI to write content, configure complex settings, or manage your database. Need things done automatically? Schedule **Automated AI Tasks** using our native task infrastructure to run on a repeating schedule or at precise dates and times. Everything comes with instant 1-click rollbacks for peace of mind.
-
-#### 2. 📱 Omnichannel IM & Chatbot (WhatsApp & Telegram)
-Take your customer engagement to the next level. Seamlessly integrate your site with Telegram and WhatsApp to deploy AI-driven conversational agents. Provide instant customer support, send proactive notifications, and even trigger automated tasks directly from your smartphone.
-
-#### 3. 🎭 AI Skills & Personas
-Tailor your AI's brain to match your brand's DNA. Easily toggle custom "Skills" in the Playground to give the AI specific personalities, strict coding guidelines, or structural rules. It learns your business logic and executes tasks exactly how you want them.
-
-#### 4. 🪄 Gutenberg Editor Agent
-Meet your brilliant new co-writer. A floating AI assistant lives directly inside your block editor. Just type `/prompt` anywhere to visually generate complex layouts, rewrite paragraphs, or autonomously create and attach stunning, context-aware featured images.
-
-#### 5. 💰 AI Token & Budget Management
-Maintain absolute control over your AI costs. Our advanced Token Usage Monitoring system provides a visual budget bar and low-token alerts, ensuring you never exceed your monthly budget caps while scaling your automation.
-
-#### 6. 🧠 Bring Your Own Model (Free Tiers Included!)
-Start automating at zero cost! Aiutoma seamlessly integrates with top providers offering generous free tiers (like Google Gemini and HuggingFace), as well as premium models (OpenAI) and edge networks (Cloudflare Workers AI). Easily configure custom endpoints to connect any model you prefer.
-
-#### 7. 🌍 WPML & Multi-Language Auto-Translation
-Take your business global without lifting a finger. Aiutoma natively integrates with WPML to automatically translate and sync your content across multiple languages using state-of-the-art AI, keeping your international SEO flawless and saving you thousands in translation fees.
-
-#### 8. 📡 AI-Ready SEO (LLMs.txt & Markdown)
-Prepare your website for the future of search. Aiutoma automatically generates clean, readable Markdown versions of your pages and an `/llms.txt` file, ensuring your site is perfectly indexed by AI search engines like ChatGPT, Claude, and Perplexity.
-
-#### 9. 🔗 Remote Control (MCP & OpenAPI)
-Manage your WordPress site from anywhere. Securely connect your favorite external AI clients (like Claude Desktop or Custom GPTs) via the Model Context Protocol (MCP) or OpenAPI to read data, update content, and execute tasks remotely with repository-compliant security.
-
-#### 10. 🔔 AI Webhook Receiver
-Keep a perfect audit trail. Provide external agents (like Zapier, Make, or custom scripts) with a secure endpoint that automatically logs their actions as native WordPress comments directly on the relevant posts.
-
-#### 11. 📚 RAG Knowledge Base
-Give your AI perfect memory. Aiutoma automatically syncs your posts, WooCommerce products, and documentation into a local vector database so it always knows your exact inventory and content, ensuring hyper-accurate responses.
-
-#### 12. 💬 Smart Frontend Chatbot (EU AI Act Ready)
-Empower your visitors with total legal peace of mind. Deploy a sleek, lightning-fast chat widget powered by your own site data to provide instant customer support, smart WooCommerce recommendations, and lead generation on autopilot. Fully compliant with EU AI Act (Art. 50) transparency requirements, featuring permanent AI badges, accuracy disclaimers, seamless operator takeover, and GDPR consent.
-
-#### 13. 🛠️ Automated Dependency Management
-Keep your system secure and up-to-date effortlessly. Aiutoma features a robust, one-click interface for automating the installation and updates of complex external libraries (like PDF generators and device detectors) directly from official sources, completely hands-free.
+* **AI Playground & Automation Hub**: Centralized command center. Write content, manage settings, or schedule recurring AI tasks with instant 1-click rollbacks.
+* **Smart Frontend Chatbot (EU AI Act Ready)**: Conversational assistant trained on your site content. Fully compliant with EU AI Act (Art. 50) transparency requirements with AI badges, accuracy disclaimers, and operator takeover.
+* **Gutenberg Editor Agent**: Co-writer living inside the block editor. Generate layouts, rewrite copy, or create featured images on the fly.
+* **Omnichannel IM (WhatsApp & Telegram)**: Deploy AI conversational agents to provide instant support and trigger site tasks directly from mobile.
+* **AI Skills & Custom Personas**: Fine-tune the AI's behavior and business logic to match your brand.
+* **Bring Your Own Model (Free Tiers Included)**: Seamlessly connects to OpenAI, Anthropic Claude, Google Gemini, Hugging Face, Mistral, Groq, Cohere, AWS Bedrock, or custom local endpoints.
+* **Token Usage & Budget Management**: Visual budget monitoring and threshold alerts keep AI infrastructure costs predictable.
+* **WPML Multi-Language Auto-Translation**: Auto-translates content and strings across multiple languages.
+* **RAG Knowledge Base**: Indexes posts, WooCommerce products, and documentation into a local vector store for hyper-accurate context.
+* **Remote Control (MCP & OpenAPI)**: Connect external AI clients like Claude Desktop or Custom GPTs via Model Context Protocol (MCP).
+* **AI-Ready SEO**: Generates clean Markdown pages and `/llms.txt` for AI search engines.
+* **Automated Dependency Management**: One-click installation and updates of optional external libraries directly from official sources.
 
 == AI & Data Privacy Disclosures ==
 
@@ -119,8 +89,8 @@ This plugin connects to external third-party services to provide artificial inte
 * **Service Description & Purpose:** This plugin connects to the Mistral AI API (`api.mistral.ai`, `console.mistral.ai`) to generate text and chat completions when configured by the administrator with a Mistral API key.
 * **What Data is Sent and When:** User prompts and conversation context are sent only when an AI query is directed to a Mistral AI model.
 * **Service Provider:** Mistral AI SAS
-* **Terms of Service:** [terms of service](https://mistral.ai/terms/)
-* **Privacy Policy:** [privacy policy](https://mistral.ai/privacy-policy/)
+* **Terms of Service:** [terms of service](https://legal.mistral.ai/terms/get-started/)
+* **Privacy Policy:** [privacy policy](https://legal.mistral.ai/terms/privacy-policy/)
 
 = OpenRouter =
 * **Service Description & Purpose:** This plugin connects to the OpenRouter API (`openrouter.ai`) as an AI gateway to route requests across diverse AI models when configured by the administrator with an OpenRouter API key.
@@ -149,6 +119,13 @@ This plugin connects to external third-party services to provide artificial inte
 * **Service Provider:** OpenAI, LLC
 * **Terms of Service:** [terms of use](https://openai.com/policies/terms-of-use/)
 * **Privacy Policy:** [privacy policy](https://openai.com/policies/privacy-policy/)
+
+= Anthropic =
+* **Service Description & Purpose:** This plugin connects to the Anthropic API (`api.anthropic.com`) to generate text completions, chat responses, and monitor AI token usage when configured by the administrator with an Anthropic API key or when sending queries to Anthropic Claude models.
+* **What Data is Sent and When:** User prompts, conversation history, system instructions, and request parameters are sent only when an administrator or visitor initiates an AI query directed to an Anthropic Claude model.
+* **Service Provider:** Anthropic PBC
+* **Terms of Service:** [terms of service](https://www.anthropic.com/legal/commercial-terms)
+* **Privacy Policy:** [privacy policy](https://www.anthropic.com/legal/privacy)
 
 = Google Gemini & AI Studio =
 * **Service Description & Purpose:** This plugin connects to the Google Generative Language API and Google AI Studio (`generativelanguage.googleapis.com`, `aistudio.google.com`) to generate text, process multimodal content, and generate vector embeddings when configured with a Gemini API key.

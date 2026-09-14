@@ -59,12 +59,10 @@ class Log_Data_Extractor {
 			'OpenAI'     => array( 'api.openai.com' ),
 			'Anthropic'  => array( 'api.anthropic.com' ),
 			'Google'     => array( 'generativelanguage.googleapis.com' ),
-			'Perplexity' => array( 'api.perplexity.ai' ),
 			'Groq'       => array( 'api.groq.com' ),
 			'Mistral'    => array( 'api.mistral.ai' ),
 			'Cohere'     => array( 'api.cohere.com', 'api.cohere.ai' ),
 			'Ollama'     => array( 'localhost:11434', '127.0.0.1:11434' ),
-			'Fal'        => array( 'fal.run', 'gateway.fal.ai' ),
 		);
 
 		// Allow custom patterns for custom ports, proxies, or self-hosted Ollama.

@@ -156,56 +156,134 @@ trait WordPress
 
         \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-users', [
             'category' => 'aiutoma',
-            'label' => __('Manage Users & Roles', 'aiutoma'),
-            'description' => __('Manage WordPress users, roles, and capabilities.', 'aiutoma'),
+            'label' => __('Manage Users & Profiles', 'aiutoma'),
+            'description' => __('View WordPress users and update user profile information and metadata. Does not create users, delete users, or modify roles and capabilities.', 'aiutoma'),
             'execute_callback' => function ($input) {
-                $action = $input['action'];
+                $action = $input['action'] ?? 'get_users';
                 $args = $input['args'] ?? [];
 
-                if ($action === 'update_user') {
-                    if (isset($args['role']) && $args['role'] === 'administrator' && !current_user_can('promote_users')) {
-                        return new \WP_Error('unauthorized', __('You cannot promote a user to administrator.', 'aiutoma'));
+                if ($action === 'get_users' || $action === 'get') {
+                    if (!current_user_can('list_users')) {
+                        return new \WP_Error('unauthorized', __('You do not have permission to list users.', 'aiutoma'));
                     }
-                    $user_id = wp_update_user($args);
-                    if (is_wp_error($user_id)) return $user_id;
-                    return ['success' => true, 'user_id' => $user_id];
-                } elseif ($action === 'delete_user') {
-                    if (!current_user_can('delete_users')) {
-                        return new \WP_Error('unauthorized', __('You do not have permission to delete users.', 'aiutoma'));
+                    $query_args = [];
+                    if (!empty($args['role'])) $query_args['role'] = sanitize_key($args['role']);
+                    if (!empty($args['search'])) $query_args['search'] = sanitize_text_field($args['search']);
+                    if (!empty($args['number'])) $query_args['number'] = min(100, max(1, intval($args['number'])));
+                    if (!empty($args['paged'])) $query_args['paged'] = max(1, intval($args['paged']));
+                    if (!empty($args['orderby'])) $query_args['orderby'] = sanitize_key($args['orderby']);
+                    if (!empty($args['order'])) $query_args['order'] = strtoupper($args['order']) === 'DESC' ? 'DESC' : 'ASC';
+                    if (!empty($args['include'])) $query_args['include'] = array_map('intval', (array)$args['include']);
+
+                    $users = get_users($query_args);
+                    $data = [];
+                    foreach ($users as $u) {
+                        $data[] = [
+                            'id' => $u->ID,
+                            'user_login' => $u->user_login,
+                            'display_name' => $u->display_name,
+                            'user_email' => $u->user_email,
+                            'user_nicename' => $u->user_nicename,
+                            'first_name' => $u->first_name,
+                            'last_name' => $u->last_name,
+                            'nickname' => $u->nickname,
+                            'description' => $u->description,
+                            'user_url' => $u->user_url,
+                            'roles' => (array)$u->roles,
+                        ];
                     }
-                    require_once ABSPATH . 'wp-admin/includes/user.php';
-                    $reassign = $args['reassign'] ?? null;
-                    $result = wp_delete_user($args['user_id'], $reassign);
-                    return ['success' => $result];
-                } elseif ($action === 'get_users') {
-                    $users = get_users($args);
-                    $data = array_map(function ($u) {
-                        return $u->to_array();
-                    }, $users);
-                    return ['success' => true, 'users' => $data];
-                } elseif ($action === 'add_role') {
-                    add_role($args['role'], $args['display_name'], $args['capabilities'] ?? []);
-                    return ['success' => true];
-                } elseif ($action === 'remove_role') {
-                    remove_role($args['role']);
-                    return ['success' => true];
-                } elseif ($action === 'add_cap' || $action === 'remove_cap') {
-                    $role = get_role($args['role']);
-                    if (!$role) return new \WP_Error('invalid_role', 'Role not found.');
-                    if ($action === 'add_cap') $role->add_cap($args['cap']);
-                    else $role->remove_cap($args['cap']);
-                    return ['success' => true];
+                    return ['success' => true, 'total' => count($data), 'users' => $data];
+                } elseif ($action === 'update_user' || $action === 'update_profile') {
+                    $user_id = intval($args['ID'] ?? ($args['id'] ?? ($args['user_id'] ?? 0)));
+                    if (!$user_id) {
+                        $user_id = get_current_user_id();
+                    }
+                    if (!$user_id || !current_user_can('edit_user', $user_id)) {
+                        return new \WP_Error('unauthorized', __('You do not have permission to edit this user.', 'aiutoma'));
+                    }
+
+                    // Explicitly block any attempt to alter roles, capabilities, passwords, or usernames
+                    if (isset($args['role']) || isset($args['roles']) || isset($args['capabilities'])) {
+                        return new \WP_Error('forbidden_field', __('Modifying roles or capabilities is not permitted. Please use the Developer Extension for role management.', 'aiutoma'));
+                    }
+                    if (isset($args['user_pass']) || isset($args['password'])) {
+                        return new \WP_Error('forbidden_field', __('Password modifications are not permitted via this ability for security reasons.', 'aiutoma'));
+                    }
+                    if (isset($args['user_login'])) {
+                        return new \WP_Error('forbidden_field', __('Usernames cannot be modified.', 'aiutoma'));
+                    }
+
+                    $update_data = ['ID' => $user_id];
+                    $allowed_profile_fields = [
+                        'display_name',
+                        'first_name',
+                        'last_name',
+                        'nickname',
+                        'description',
+                        'user_url',
+                        'user_email'
+                    ];
+
+                    foreach ($allowed_profile_fields as $field) {
+                        if (isset($args[$field])) {
+                            if ($field === 'user_email') {
+                                $email = sanitize_email($args[$field]);
+                                if (!is_email($email)) {
+                                    return new \WP_Error('invalid_email', __('Invalid email address.', 'aiutoma'));
+                                }
+                                $update_data['user_email'] = $email;
+                            } elseif ($field === 'user_url') {
+                                $update_data['user_url'] = esc_url_raw($args[$field]);
+                            } elseif ($field === 'description') {
+                                $update_data['description'] = sanitize_textarea_field($args[$field]);
+                            } else {
+                                $update_data[$field] = sanitize_text_field($args[$field]);
+                            }
+                        }
+                    }
+
+                    if (count($update_data) > 1) {
+                        $updated = wp_update_user($update_data);
+                        if (is_wp_error($updated)) {
+                            return $updated;
+                        }
+                    }
+
+                    // Update user meta if provided (strictly preventing capability escalation)
+                    if (!empty($args['meta']) && is_array($args['meta'])) {
+                        $disallowed_meta = ['wp_capabilities', 'wp_user_level', 'session_tokens', 'wp_user_roles'];
+                        foreach ($args['meta'] as $meta_key => $meta_val) {
+                            $meta_key = sanitize_key($meta_key);
+                            if (in_array(strtolower($meta_key), $disallowed_meta, true) || strpos($meta_key, 'capabilit') !== false || strpos($meta_key, 'user_level') !== false) {
+                                continue;
+                            }
+                            if (is_string($meta_val)) {
+                                $meta_val = sanitize_text_field($meta_val);
+                            }
+                            update_user_meta($user_id, $meta_key, $meta_val);
+                        }
+                    }
+
+                    return ['success' => true, 'user_id' => $user_id, 'message' => __('User profile updated successfully.', 'aiutoma')];
                 }
-                return new \WP_Error('invalid_action', 'Unsupported action.');
+
+                return new \WP_Error('invalid_action', __('Unsupported action. Supported actions: "get_users", "update_user".', 'aiutoma'));
             },
             'permission_callback' => function () {
-                return current_user_can('edit_users');
+                return current_user_can('list_users') || current_user_can('edit_users');
             },
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
-                    'action' => ['type' => 'string', 'enum' => ['get_users', 'update_user', 'delete_user', 'add_role', 'remove_role', 'add_cap', 'remove_cap'], 'description' => 'Action to perform'],
-                    'args' => ['type' => 'object', 'description' => 'Arguments for the action. For update_user use user data array. For add_role use {"role":"editor", "display_name":"Editor"}. For add_cap/remove_cap use {"role":"editor", "cap":"edit_theme_options"}.']
+                    'action' => [
+                        'type' => 'string',
+                        'enum' => ['get_users', 'update_user'],
+                        'description' => 'Action to perform: "get_users" to query user profiles, or "update_user" to update safe profile fields and meta.'
+                    ],
+                    'args' => [
+                        'type' => 'object',
+                        'description' => 'Arguments. For "get_users": {"role": "author", "search": "keyword"}. For "update_user": {"ID": 2, "first_name": "John", "description": "Bio...", "meta": {"custom_field": "value"}} (Note: roles, capabilities, and passwords cannot be modified).'
+                    ]
                 ],
                 'required' => ['action']
             ]
@@ -339,6 +417,7 @@ trait WordPress
                 if ($action === 'list') {
                     $taxonomy = sanitize_key($args['taxonomy'] ?? 'category');
                     if (!taxonomy_exists($taxonomy)) {
+                        /* translators: %s: taxonomy name */
                         return new \WP_Error('invalid_taxonomy', sprintf(__('Taxonomy "%s" does not exist.', 'aiutoma'), $taxonomy));
                     }
 
@@ -410,6 +489,7 @@ trait WordPress
                         return new \WP_Error('missing_name', __('Term name is required.', 'aiutoma'));
                     }
                     if (!taxonomy_exists($taxonomy)) {
+                        /* translators: %s: taxonomy name */
                         return new \WP_Error('invalid_taxonomy', sprintf(__('Taxonomy "%s" does not exist.', 'aiutoma'), $taxonomy));
                     }
 

@@ -109,7 +109,9 @@ trait Core
                     return new \WP_Error('mail_failed', 'Failed to send email. Check your WordPress SMTP settings.');
                 }
             },
-            'permission_callback' => '__return_true', // AI enforces role logic if needed
+            'permission_callback' => function () {
+                return current_user_can('manage_options');
+            },
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
@@ -539,6 +541,7 @@ trait Core
 
                 $protected_options = ['siteurl', 'home', 'active_plugins', 'admin_email', 'users_can_register', 'default_role'];
                 if (in_array($option_name, $protected_options, true) && in_array($action, ['update', 'delete'], true)) {
+                    /* translators: %s: option name */
                     return new \WP_Error('protected_option', sprintf(__('Modifying the "%s" option is restricted for site security.', 'aiutoma'), $option_name));
                 }
 
@@ -561,6 +564,7 @@ trait Core
                         'success' => true,
                         'option_name' => $option_name,
                         'updated' => $updated,
+                        /* translators: %s: option name */
                         'message' => sprintf(__('Option "%s" successfully saved.', 'aiutoma'), $option_name)
                     ];
                 } elseif ($action === 'delete') {
@@ -569,6 +573,7 @@ trait Core
                         'success' => true,
                         'option_name' => $option_name,
                         'deleted' => $deleted,
+                        /* translators: %s: option name */
                         'message' => sprintf(__('Option "%s" deleted.', 'aiutoma'), $option_name)
                     ];
                 }
@@ -713,6 +718,7 @@ trait Core
 
                     $ability = $resolve_ability($ability_name);
                     if (!$ability) {
+                        /* translators: %s: ability name */
                         return new \WP_Error('ability_not_found', sprintf(__('Ability "%s" not found. Call action "list" to view all registered abilities.', 'aiutoma'), $ability_name));
                     }
 
@@ -752,12 +758,14 @@ trait Core
 
                     $ability = $resolve_ability($ability_name);
                     if (!$ability) {
+                        /* translators: %s: ability name */
                         return new \WP_Error('ability_not_found', sprintf(__('Ability "%s" not found.', 'aiutoma'), $ability_name));
                     }
 
                     $ability_input = isset($input['ability_input']) && is_array($input['ability_input']) ? $input['ability_input'] : [];
 
                     if (method_exists($ability, 'check_permissions') && !$ability->check_permissions($ability_input)) {
+                        /* translators: %s: ability name */
                         return new \WP_Error('forbidden', sprintf(__('Permission denied for ability "%s".', 'aiutoma'), $ability_name));
                     }
 
@@ -919,6 +927,7 @@ trait Core
 
                     $skill = $ai->get_skill_by_id($skill_id);
                     if (!$skill) {
+                        /* translators: %s: skill name */
                         return new \WP_Error('skill_not_found', sprintf(__('Skill "%s" not found. Call action "list" to see all available skills.', 'aiutoma'), $skill_id));
                     }
 

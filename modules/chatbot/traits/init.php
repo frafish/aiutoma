@@ -50,13 +50,7 @@ trait Init {
         register_rest_route('aiutoma/v1', '/chatbot', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_chatbot_request'],
-            'permission_callback' => function(\WP_REST_Request $request) {
-                $nonce = $request->get_header('X-WP-Nonce');
-                if (empty($nonce) || !wp_verify_nonce($nonce, 'wp_rest')) {
-                    return new \WP_Error('rest_forbidden', __('Bot activity detected. Invalid nonce.', 'aiutoma'), ['status' => 403]);
-                }
-                return true;
-            }
+            'permission_callback' => '__return_true'
         ]);
 
         register_rest_route('aiutoma/v1', '/chatbot/summarize-session', [
@@ -70,13 +64,7 @@ trait Init {
         register_rest_route('aiutoma/v1', '/chatbot/poll', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_chatbot_poll'],
-            'permission_callback' => function(\WP_REST_Request $request) {
-                $nonce = $request->get_header('X-WP-Nonce');
-                if (empty($nonce) || !wp_verify_nonce($nonce, 'wp_rest')) {
-                    return new \WP_Error('rest_forbidden', __('Bot activity detected. Invalid nonce.', 'aiutoma'), ['status' => 403]);
-                }
-                return true;
-            }
+            'permission_callback' => '__return_true'
         ]);
 
         register_rest_route('aiutoma/v1', '/chatbot/toggle-manual', [

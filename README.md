@@ -90,7 +90,7 @@ This plugin connects to external third-party services to provide artificial inte
 - **Service & Purpose:** Connects to Mistral AI API (`api.mistral.ai`, `console.mistral.ai`) for text generation and chat completions.
 - **Data Sent & When:** User prompts and conversation context sent when interacting with Mistral models.
 - **Provider:** Mistral AI SAS
-- **Terms & Privacy:** [terms of service](https://mistral.ai/terms/) | [privacy policy](https://mistral.ai/privacy-policy/)
+- **Terms & Privacy:** [terms of service](https://legal.mistral.ai/terms/get-started/) | [privacy policy](https://legal.mistral.ai/terms/privacy-policy/)
 
 ### 7. OpenRouter
 - **Service & Purpose:** Connects to OpenRouter API (`openrouter.ai`) to route requests across diverse models.
@@ -116,37 +116,43 @@ This plugin connects to external third-party services to provide artificial inte
 - **Provider:** OpenAI, LLC
 - **Terms & Privacy:** [terms of use](https://openai.com/policies/terms-of-use/) | [privacy policy](https://openai.com/policies/privacy-policy/)
 
-### 11. Google Gemini & AI Studio
+### 11. Anthropic
+- **Service & Purpose:** Connects to Anthropic API (`api.anthropic.com`) for text completions, conversational processing, and AI token tracking when querying Claude models.
+- **Data Sent & When:** Prompts, conversation history, and system instructions sent only upon user-initiated AI queries.
+- **Provider:** Anthropic PBC
+- **Terms & Privacy:** [terms of service](https://www.anthropic.com/legal/commercial-terms) | [privacy policy](https://www.anthropic.com/legal/privacy)
+
+### 12. Google Gemini & AI Studio
 - **Service & Purpose:** Connects to Google Generative Language API (`generativelanguage.googleapis.com`, `aistudio.google.com`) for text, multimodal chat, and vector embeddings.
 - **Data Sent & When:** Prompts, attached media, and text content sent when generating content or embeddings.
 - **Provider:** Google LLC
 - **Terms & Privacy:** [terms of service](https://ai.google.dev/gemini-api/terms) / [terms of use](https://policies.google.com/terms) | [privacy policy](https://policies.google.com/privacy)
 
-### 12. Google Translate
+### 13. Google Translate
 - **Service & Purpose:** Connects to Google Translate API (`translate.googleapis.com`) in the WPML integration module for auto-translation.
 - **Data Sent & When:** Post titles and content strings sent when the administrator initiates an automated translation action.
 - **Provider:** Google LLC
 - **Terms & Privacy:** [terms of service](https://policies.google.com/terms) | [privacy policy](https://policies.google.com/privacy)
 
-### 13. Telegram
+### 14. Telegram
 - **Service & Purpose:** Connects to Telegram Bot API (`api.telegram.org`, `t.me`) for chatbot interactions over Telegram.
 - **Data Sent & When:** Webhook callback URLs and outbound messages sent when conversing with Telegram users.
 - **Provider:** Telegram FZ-LLC
 - **Terms & Privacy:** [terms of service](https://telegram.org/tos) | [privacy policy](https://telegram.org/privacy)
 
-### 14. Meta / WhatsApp Cloud API
+### 15. Meta / WhatsApp Cloud API
 - **Service & Purpose:** Connects to Meta Graph API and WhatsApp Business Cloud API (`graph.facebook.com`, `developers.facebook.com`, `business.facebook.com`) for chatbot interactions over WhatsApp.
 - **Data Sent & When:** Recipient phone numbers and response text messages sent when responding to WhatsApp inquiries.
 - **Provider:** Meta Platforms, Inc.
 - **Terms & Privacy:** [terms of service](https://www.facebook.com/legal/terms) | [privacy policy](https://www.facebook.com/privacy/policy/)
 
-### 15. Pollinations AI
+### 16. Pollinations AI
 - **Service & Purpose:** Connects to Pollinations AI (`image.pollinations.ai`) for generating featured images and artwork from text descriptions.
 - **Data Sent & When:** Image generation prompt sent in the URL query string when invoking image generation.
 - **Provider:** Pollinations AI
 - **Terms & Privacy:** [terms of service](https://pollinations.ai/) | [privacy policy](https://pollinations.ai/)
 
-### 16. WordPress.org Block Pattern Directory
+### 17. WordPress.org Block Pattern Directory
 - **Service & Purpose:** Connects to WordPress.org Block Patterns API (`api.wordpress.org`) to search for public block patterns in the Gutenberg assistant ability.
 - **Data Sent & When:** Pattern search keywords sent when searching block patterns.
 - **Provider:** WordPress.org
