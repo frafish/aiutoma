@@ -65,48 +65,182 @@ trait Core
         \Aiutoma\Modules\Ai\Abilities::register('aiutoma/send-email', [
             'category' => 'aiutoma',
             'label' => __('Send Email', 'aiutoma'),
-            'description' => __('Send an email using the native wp_mail() function. Useful for sending notifications, reports, or alerts to users or admins.', 'aiutoma'),
+            'description' => __('Send an email using the native wp_mail() function. Supports single or multiple recipients, CC/BCC, HTML or plain text, custom headers, and attachments (local filesystem paths or WordPress media URLs).', 'aiutoma'),
             'execute_callback' => function ($input) {
-                $to = sanitize_email($input['to']);
-                if (!is_email($to)) {
-                    return new \WP_Error('invalid_email', 'The recipient email address is invalid.');
+                $parse_single_email = function ($entry) {
+                    $entry = trim((string)$entry);
+                    if (empty($entry)) {
+                        return null;
+                    }
+                    if (preg_match('/^(.*?)\s*<([^>]+)>$/', $entry, $matches)) {
+                        $name = trim($matches[1]);
+                        $email = sanitize_email($matches[2]);
+                        if (is_email($email)) {
+                            return !empty($name) ? sprintf('%s <%s>', sanitize_text_field($name), $email) : $email;
+                        }
+                    } elseif (is_email($entry)) {
+                        return sanitize_email($entry);
+                    }
+                    return null;
+                };
+
+                $parse_email_list = function ($raw) use ($parse_single_email) {
+                    $results = [];
+                    if (is_array($raw)) {
+                        foreach ($raw as $item) {
+                            $parsed = $parse_single_email($item);
+                            if ($parsed) {
+                                $results[] = $parsed;
+                            }
+                        }
+                    } elseif (is_string($raw)) {
+                        $parts = explode(',', $raw);
+                        foreach ($parts as $part) {
+                            $parsed = $parse_single_email($part);
+                            if ($parsed) {
+                                $results[] = $parsed;
+                            }
+                        }
+                    }
+                    return array_values(array_unique($results));
+                };
+
+                $to_list = $parse_email_list($input['to'] ?? '');
+                if (empty($to_list)) {
+                    return new \WP_Error('invalid_email', __('At least one valid recipient email address is required in "to".', 'aiutoma'));
                 }
 
-                $subject = sanitize_text_field($input['subject']);
-                $message = $input['message'];
-                $headers = isset($input['headers']) ? (is_array($input['headers']) ? array_map('sanitize_text_field', $input['headers']) : sanitize_text_field($input['headers'])) : '';
+                $subject = sanitize_text_field($input['subject'] ?? '');
+                $message = (string)($input['message'] ?? '');
 
                 if (empty($subject) || empty($message)) {
-                    return new \WP_Error('missing_content', 'Subject and message are required.');
+                    return new \WP_Error('missing_content', __('Both subject and message are required.', 'aiutoma'));
                 }
 
-                $is_html = !empty($input['is_html']);
+                $headers_list = [];
+
+                // HTML content type via header to avoid leaking global wp_mail_content_type filter
+                $is_html = !isset($input['is_html']) || (bool)$input['is_html'];
                 if ($is_html) {
-                    add_filter('wp_mail_content_type', function () {
-                        return 'text/html';
-                    });
+                    $headers_list[] = 'Content-Type: text/html; charset=UTF-8';
+                } else {
+                    $headers_list[] = 'Content-Type: text/plain; charset=UTF-8';
                 }
 
-                $attachments = [];
-                if (!empty($input['attachments']) && is_array($input['attachments'])) {
-                    foreach ($input['attachments'] as $att) {
-                        $att = wp_normalize_path(sanitize_text_field($att));
-                        if (file_exists($att)) {
-                            $attachments[] = $att;
+                // From headers
+                if (!empty($input['from_email']) && is_email($input['from_email'])) {
+                    $from_name = !empty($input['from_name']) ? sanitize_text_field($input['from_name']) : '';
+                    $from_email = sanitize_email($input['from_email']);
+                    $headers_list[] = !empty($from_name) ? sprintf('From: %s <%s>', $from_name, $from_email) : sprintf('From: %s', $from_email);
+                }
+
+                // Reply-To
+                if (!empty($input['reply_to'])) {
+                    $reply_parsed = $parse_single_email($input['reply_to']);
+                    if ($reply_parsed) {
+                        $headers_list[] = 'Reply-To: ' . $reply_parsed;
+                    }
+                }
+
+                // CC
+                if (!empty($input['cc'])) {
+                    $cc_list = $parse_email_list($input['cc']);
+                    foreach ($cc_list as $cc) {
+                        $headers_list[] = 'Cc: ' . $cc;
+                    }
+                }
+
+                // BCC
+                if (!empty($input['bcc'])) {
+                    $bcc_list = $parse_email_list($input['bcc']);
+                    foreach ($bcc_list as $bcc) {
+                        $headers_list[] = 'Bcc: ' . $bcc;
+                    }
+                }
+
+                // Custom headers
+                if (!empty($input['headers']) && is_array($input['headers'])) {
+                    foreach ($input['headers'] as $header_item) {
+                        $clean_header = sanitize_text_field($header_item);
+                        if (!empty($clean_header)) {
+                            $headers_list[] = $clean_header;
                         }
                     }
                 }
 
-                $result = wp_mail($to, $subject, $message, $headers, $attachments);
+                // Resolve attachments
+                $resolved_attachments = [];
+                if (!empty($input['attachments']) && is_array($input['attachments'])) {
+                    $upload_dir = wp_upload_dir();
+                    $upload_baseurl = $upload_dir['baseurl'];
+                    $upload_basedir = wp_normalize_path($upload_dir['basedir']);
+                    $site_url = site_url();
+                    $abspath_normalized = wp_normalize_path(ABSPATH);
+                    $temp_dir_normalized = wp_normalize_path(get_temp_dir());
 
-                // We shouldn't remove anonymous function filter directly like this, but we can reset to default text/plain or let WP handle it per request. A better way:
-                // Removing filter added via closure is tricky. But WordPress wp_mail resets itself mostly, or we use a named function.
-                // It's safe enough for this context as this is isolated to the AI request cycle.
+                    foreach ($input['attachments'] as $att) {
+                        $att = trim((string)$att);
+                        if (empty($att)) {
+                            continue;
+                        }
 
-                if ($result) {
-                    return ['success' => true, 'message' => 'Email sent successfully to ' . $to];
+                        $file_path = null;
+
+                        // Check if URL pointing to WordPress uploads
+                        if (preg_match('/^https?:\/\//i', $att)) {
+                            if (strpos($att, $upload_baseurl) === 0) {
+                                $relative_upload = substr($att, strlen($upload_baseurl));
+                                $file_path = $upload_basedir . $relative_upload;
+                            } elseif (strpos($att, $site_url) === 0) {
+                                $relative_site = substr($att, strlen($site_url));
+                                $file_path = $abspath_normalized . ltrim($relative_site, '/');
+                            }
+                        } else {
+                            $normalized = wp_normalize_path($att);
+                            if (file_exists($normalized)) {
+                                $file_path = $normalized;
+                            } elseif (file_exists($abspath_normalized . ltrim($normalized, '/'))) {
+                                $file_path = $abspath_normalized . ltrim($normalized, '/');
+                            }
+                        }
+
+                        if ($file_path) {
+                            $real = realpath($file_path);
+                            if ($real && file_exists($real) && is_readable($real)) {
+                                $real_normalized = wp_normalize_path($real);
+                                // Security: ensure file resides inside WordPress or system temp, and is not wp-config.php
+                                $is_allowed = (strpos($real_normalized, $abspath_normalized) === 0 || strpos($real_normalized, $temp_dir_normalized) === 0);
+                                if ($is_allowed && !preg_match('/wp-config\.php$|\.env$/i', $real_normalized)) {
+                                    $resolved_attachments[] = $real_normalized;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Capture wp_mail_failed action for exact diagnostic error messages
+                $mail_error = null;
+                $error_capturer = function (\WP_Error $error) use (&$mail_error) {
+                    $mail_error = $error;
+                };
+                add_action('wp_mail_failed', $error_capturer);
+
+                $recipient_arg = count($to_list) === 1 ? $to_list[0] : $to_list;
+                $sent = wp_mail($recipient_arg, $subject, $message, $headers_list, $resolved_attachments);
+
+                remove_action('wp_mail_failed', $error_capturer);
+
+                if ($sent) {
+                    return [
+                        'success' => true,
+                        'message' => sprintf(__('Email successfully dispatched to: %s', 'aiutoma'), implode(', ', $to_list)),
+                        'recipients' => $to_list,
+                        'attachments_count' => count($resolved_attachments),
+                        'attachments' => array_map('basename', $resolved_attachments)
+                    ];
                 } else {
-                    return new \WP_Error('mail_failed', 'Failed to send email. Check your WordPress SMTP settings.');
+                    $error_msg = $mail_error instanceof \WP_Error ? $mail_error->get_error_message() : __('Failed to send email. Check your WordPress SMTP or mail server configuration.', 'aiutoma');
+                    return new \WP_Error('mail_failed', $error_msg, $mail_error instanceof \WP_Error ? $mail_error->get_error_data() : null);
                 }
             },
             'permission_callback' => function () {
@@ -116,30 +250,59 @@ trait Core
                 'type' => 'object',
                 'properties' => [
                     'to' => [
-                        'type' => 'string',
-                        'description' => 'Recipient email address'
+                        'description' => 'Recipient email address(es). Accepts a single email string, an array of emails, or a comma-separated list. Formats like "Name <email@example.com>" are supported.',
+                        'anyOf' => [
+                            ['type' => 'string'],
+                            ['type' => 'array', 'items' => ['type' => 'string']]
+                        ]
                     ],
                     'subject' => [
                         'type' => 'string',
-                        'description' => 'Email subject'
+                        'description' => 'Email subject line.'
                     ],
                     'message' => [
                         'type' => 'string',
-                        'description' => 'Email body/content. Can contain HTML if is_html is true.'
+                        'description' => 'Email body content. Supports HTML markup (default) or plain text.'
                     ],
                     'is_html' => [
                         'type' => 'boolean',
-                        'description' => 'Whether to send the email as HTML format (default: false)'
+                        'description' => 'Whether to send email as HTML format. Defaults to true.'
+                    ],
+                    'cc' => [
+                        'description' => 'Optional CC recipient(s). Accepts email string or array of emails.',
+                        'anyOf' => [
+                            ['type' => 'string'],
+                            ['type' => 'array', 'items' => ['type' => 'string']]
+                        ]
+                    ],
+                    'bcc' => [
+                        'description' => 'Optional BCC recipient(s). Accepts email string or array of emails.',
+                        'anyOf' => [
+                            ['type' => 'string'],
+                            ['type' => 'array', 'items' => ['type' => 'string']]
+                        ]
+                    ],
+                    'reply_to' => [
+                        'type' => 'string',
+                        'description' => 'Optional Reply-To email address.'
+                    ],
+                    'from_name' => [
+                        'type' => 'string',
+                        'description' => 'Optional custom sender display name.'
+                    ],
+                    'from_email' => [
+                        'type' => 'string',
+                        'description' => 'Optional custom sender email address.'
                     ],
                     'headers' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Optional array of email headers (e.g. ["From: Me <me@example.com>"])'
+                        'description' => 'Optional raw custom headers (e.g. ["X-Custom-Header: value"]).'
                     ],
                     'attachments' => [
                         'type' => 'array',
                         'items' => ['type' => 'string'],
-                        'description' => 'Optional array of absolute file paths on the server to attach to the email (not web URLs).'
+                        'description' => 'Optional array of file paths or WordPress media/upload URLs to attach to the email.'
                     ]
                 ],
                 'required' => ['to', 'subject', 'message']

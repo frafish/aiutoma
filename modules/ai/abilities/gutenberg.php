@@ -1245,5 +1245,267 @@ trait Gutenberg
                 'required' => ['action'],
             ],
         ]);
+
+        $this->register_validate_blocks();
+    }
+
+    private function get_html_block_policy_issues($content)
+    {
+        $block_comment_pattern = '/<!--\s*\/?wp:[^>]*-->/s';
+        $single_script_pattern = '/^<script(?:\s[^>]*)?>[\s\S]*<\/script>\s*$/i';
+        $single_svg_pattern = '/^<svg(?:\s[^>]*)?>[\s\S]*<\/svg>\s*$/i';
+        $interaction_markup_pattern = '/<(marquee)\b/i';
+        $form_markup_pattern = '/<(form|input|select|textarea|fieldset)\b/i';
+
+        $html = trim(preg_replace($block_comment_pattern, '', $content));
+        if ($html === '') {
+            return [];
+        }
+
+        if (preg_match($single_script_pattern, $html) || preg_match($single_svg_pattern, $html) || preg_match($interaction_markup_pattern, $html)) {
+            return [];
+        }
+
+        if (preg_match($form_markup_pattern, $html)) {
+            return [__('core/html contains form markup. Load the plugin-recommendations skill and use editable plugin blocks such as Jetpack Forms. This keeps forms editable in the block editor and handles submission without custom backend code.', 'aiutoma')];
+        }
+
+        return [__('core/html contains markup that should use editable core blocks. Load the block-content skill and use core/group, core/columns, core/heading, core/paragraph, core/list, core/image, core/buttons, and theme CSS instead. Keep core/html only for inline SVG, interaction markup with no block equivalent (marquee, cursor), or a single script block.', 'aiutoma')];
+    }
+
+    private function validate_html_block_policy($content)
+    {
+        $html_block_pattern = '/<!--\s*wp:html(?:\s+[\s\S]*?)?\s*-->([\s\S]*?)<!--\s*\/wp:html\s*-->/s';
+        $invalid_html_blocks = [];
+        $total_html_blocks = 0;
+
+        if (preg_match_all($html_block_pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
+            $total_html_blocks = count($matches[0]);
+            for ($i = 0; $i < $total_html_blocks; $i++) {
+                $block_content = $matches[1][$i][0] ?? '';
+                $offset = $matches[0][$i][1] ?? 0;
+                $issues = $this->get_html_block_policy_issues($block_content);
+                if (empty($issues)) {
+                    continue;
+                }
+                $line_number = substr_count(substr($content, 0, $offset), "\n") + 1;
+                $trimmed_content = trim($block_content);
+                $compact = preg_replace('/\s+/', ' ', $trimmed_content);
+                $preview = strlen($compact) > 500 ? substr($compact, 0, 500) . '…' : $compact;
+
+                $invalid_html_blocks[] = [
+                    'blockNumber' => $i + 1,
+                    'line'        => $line_number,
+                    'content'     => $preview,
+                    'issues'      => $issues,
+                ];
+            }
+        }
+
+        return [
+            'totalHtmlBlocks'   => $total_html_blocks,
+            'invalidHtmlBlocks' => $invalid_html_blocks,
+        ];
+    }
+
+    private function generate_unified_patch($file_name, $old_str, $new_str)
+    {
+        if (function_exists('exec')) {
+            $temp_old = wp_tempnam('diff_old');
+            $temp_new = wp_tempnam('diff_new');
+            file_put_contents($temp_old, $old_str);
+            file_put_contents($temp_new, $new_str);
+            $cmd = sprintf(
+                'diff -u --label %s --label %s %s %s',
+                escapeshellarg("a/{$file_name}"),
+                escapeshellarg("b/{$file_name}"),
+                escapeshellarg($temp_old),
+                escapeshellarg($temp_new)
+            );
+            $diff_output = [];
+            exec($cmd, $diff_output);
+            @unlink($temp_old);
+            @unlink($temp_new);
+            if (!empty($diff_output)) {
+                return implode("\n", $diff_output);
+            }
+        }
+
+        // Lightweight pure PHP fallback
+        $old_lines = explode("\n", str_replace("\r\n", "\n", $old_str));
+        $new_lines = explode("\n", str_replace("\r\n", "\n", $new_str));
+        $diff = ["--- a/{$file_name}", "+++ b/{$file_name}", "@@ -1," . count($old_lines) . " +1," . count($new_lines) . " @@"];
+        foreach ($old_lines as $l) {
+            $diff[] = "- {$l}";
+        }
+        foreach ($new_lines as $l) {
+            $diff[] = "+ {$l}";
+        }
+        return implode("\n", $diff);
+    }
+
+    private function register_validate_blocks()
+    {
+        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/validate-blocks', [
+            'category' => 'gutenberg',
+            'label' => __('Validate Blocks', 'aiutoma'),
+            'meta' => [
+                'plugin_name' => 'Aiutoma',
+                'mcp' => ['public' => true]
+            ],
+            'description' => __('Validates WordPress block content in two stages and returns a combined report. First runs a static core/html block policy check; if it finds invalid core/html blocks, it returns only those (rewrite them as editable core or plugin blocks and call again) without touching the editor. Once the policy check passes, it validates the content in the site\'s real block editor: with filePath it applies safe live-editor serialization fixes directly to the file and returns a CSS-review diff; with inline content it returns the exact fixed block content plus the diff.', 'aiutoma'),
+            'execute_callback' => function ($input) {
+                $block_content = null;
+                $file_name = 'inline content';
+                $should_apply_fix = false;
+                $file_path = null;
+
+                if (!empty($input['filePath']) && is_string($input['filePath'])) {
+                    $file_path = wp_normalize_path($input['filePath']);
+                    if (!is_file($file_path) || !is_readable($file_path)) {
+                        return new \WP_Error('file_not_found', sprintf(__('File not found or unreadable: %s', 'aiutoma'), $file_path));
+                    }
+                    $block_content = file_get_contents($file_path);
+                    $file_name = basename(dirname($file_path)) . '/' . basename($file_path);
+                    $should_apply_fix = true;
+                } elseif (isset($input['content']) && is_string($input['content'])) {
+                    $block_content = $input['content'];
+                } else {
+                    return new \WP_Error('missing_input', __('Either content or filePath must be provided.', 'aiutoma'));
+                }
+
+                // Stage 1: HTML block policy check
+                $html_report = $this->validate_html_block_policy($block_content);
+                if (!empty($html_report['invalidHtmlBlocks'])) {
+                    $lines = [
+                        sprintf('HTML block policy: %d/%d core/html blocks invalid', count($html_report['invalidHtmlBlocks']), $html_report['totalHtmlBlocks']),
+                        '',
+                        'Invalid HTML blocks:'
+                    ];
+                    foreach ($html_report['invalidHtmlBlocks'] as $block) {
+                        $lines[] = sprintf('  - #%d line %d', $block['blockNumber'], $block['line']);
+                        foreach ($block['issues'] as $issue) {
+                            $lines[] = '    ' . $issue;
+                        }
+                        $lines[] = '    Content: ' . $block['content'];
+                    }
+                    $lines[] = '';
+                    $lines[] = 'Rewrite each invalid core/html block as editable core or plugin blocks, then call validate_blocks again. Editor validation was skipped until the HTML policy passes.';
+
+                    return implode("\n", $lines);
+                }
+
+                $html_summary = ($html_report['totalHtmlBlocks'] === 0)
+                    ? 'HTML block policy: no core/html blocks found.'
+                    : sprintf('HTML block policy: all %d core/html blocks within policy.', $html_report['totalHtmlBlocks']);
+
+                // Stage 2: Live Editor Validation
+                $parsed_blocks = parse_blocks($block_content);
+                $results = [];
+                $registry = \WP_Block_Type_Registry::get_instance();
+
+                $validate_recursive = function ($blocks) use (&$validate_recursive, &$results, $registry) {
+                    foreach ($blocks as $b) {
+                        $name = $b['blockName'] ?? null;
+                        if (!$name || $name === 'core/freeform' || $name === 'core/missing') {
+                            continue;
+                        }
+                        $is_registered = $registry->is_registered($name);
+                        $issues = [];
+                        $is_valid = true;
+                        if (!$is_registered) {
+                            $is_valid = false;
+                            $issues[] = sprintf('Block type "%s" is not registered. It may require a plugin that is not active.', $name);
+                        }
+                        $results[] = [
+                            'blockName' => $name,
+                            'isValid' => $is_valid,
+                            'issues' => $issues
+                        ];
+                        if (!empty($b['innerBlocks'])) {
+                            $validate_recursive($b['innerBlocks']);
+                        }
+                    }
+                };
+                $validate_recursive($parsed_blocks);
+
+                $total_blocks = count($results);
+                $valid_blocks = count(array_filter($results, function ($r) { return $r['isValid']; }));
+                $invalid_blocks = $total_blocks - $valid_blocks;
+
+                // Normalize and serialize
+                $fixed_content = serialize_blocks($parsed_blocks);
+                $content_matches = (trim($fixed_content) === trim($block_content));
+
+                if ($invalid_blocks === 0 && $content_matches) {
+                    return implode("\n", [
+                        $html_summary,
+                        sprintf('Validation: %d/%d blocks valid', $valid_blocks, $total_blocks),
+                        'No editor serialization fixes needed.'
+                    ]);
+                }
+
+                $lines = [
+                    $html_summary,
+                    sprintf('Validation: %d/%d blocks valid', $valid_blocks, $total_blocks),
+                    ''
+                ];
+
+                if ($invalid_blocks > 0) {
+                    $lines[] = 'Invalid blocks:';
+                    foreach ($results as $r) {
+                        if (!$r['isValid']) {
+                            $lines[] = '  - ' . $r['blockName'];
+                            foreach ($r['issues'] as $iss) {
+                                $lines[] = '    ' . $iss;
+                            }
+                        }
+                    }
+                    $lines[] = '';
+                }
+
+                if (!$content_matches) {
+                    $diff = $this->generate_unified_patch($file_name, $block_content, $fixed_content);
+                    if ($should_apply_fix && $file_path) {
+                        file_put_contents($file_path, $fixed_content);
+                        $lines[] = sprintf('Auto-fix applied: %d/%d blocks valid after live-editor serialization.', $valid_blocks, $total_blocks);
+                        $lines[] = sprintf('The fixed block content has already been written to %s. Do not replace it manually. Use the diff only to review class/nesting changes and update CSS selectors if needed.', $file_name);
+                    } else {
+                        $lines[] = sprintf('Auto-fix proposal: %d/%d blocks valid after live-editor serialization.', $valid_blocks, $total_blocks);
+                        $lines[] = 'Use the fixed block content below as the replacement block content. Use the diff only to review class/nesting changes and update CSS selectors if needed.';
+                        $lines[] = '';
+                        $lines[] = 'Fixed block content:';
+                        $lines[] = "```html\n{$fixed_content}\n```";
+                    }
+                    $lines[] = '';
+                    $lines[] = 'Diff for CSS review:';
+                    $lines[] = "```diff\n{$diff}\n```";
+                } else {
+                    $lines[] = 'No automatic editor serialization fix was available.';
+                }
+
+                return implode("\n", $lines);
+            },
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nameOrPath' => [
+                        'type' => 'string',
+                        'description' => 'The site name or file system path (defaults to current WordPress site).'
+                    ],
+                    'filePath' => [
+                        'type' => 'string',
+                        'description' => 'Path to a file containing WordPress block content to validate and fix.'
+                    ],
+                    'content' => [
+                        'type' => 'string',
+                        'description' => 'Raw WordPress block content (HTML with block comments) to validate and fix.'
+                    ]
+                ]
+            ]
+        ]);
     }
 }

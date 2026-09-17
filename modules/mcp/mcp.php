@@ -472,9 +472,8 @@ class Mcp
                         if (empty($tool_input_name) || !is_string($tool_input_name)) {
                             return [null, ''];
                         }
-                        $ability = function_exists('wp_get_ability') ? wp_get_ability($tool_input_name) : null;
-                        if ($ability) {
-                            return [$ability, $tool_input_name];
+                        if (function_exists('wp_has_ability') && wp_has_ability($tool_input_name)) {
+                            return [wp_get_ability($tool_input_name), $tool_input_name];
                         }
                         $clean_input_hyphen = str_replace('_', '-', $tool_input_name);
                         $clean_input_under = str_replace('-', '_', $tool_input_name);
@@ -488,11 +487,23 @@ class Mcp
                                 || $ab_under === $clean_input_under) {
                                 return [$ab, $ab_name];
                             }
+                            if (strpos($ab_name, '/') !== false) {
+                                $short_name = explode('/', $ab_name, 2)[1];
+                                $short_hyphen = str_replace('_', '-', $short_name);
+                                $short_under = str_replace('-', '_', $short_name);
+                                if ($short_name === $tool_input_name 
+                                    || $short_hyphen === $clean_input_hyphen 
+                                    || $short_under === $clean_input_under) {
+                                    return [$ab, $ab_name];
+                                }
+                            }
+                            if (($clean_input_hyphen === 'wp-cli' || $clean_input_under === 'wp_cli') && $ab_name === 'aiutoma/run-wp-cli') {
+                                return [$ab, $ab_name];
+                            }
                         }
                         $candidate = str_replace('_', '/', $tool_input_name);
-                        $ability = function_exists('wp_get_ability') ? wp_get_ability($candidate) : null;
-                        if ($ability) {
-                            return [$ability, $candidate];
+                        if (function_exists('wp_has_ability') && wp_has_ability($candidate)) {
+                            return [wp_get_ability($candidate), $candidate];
                         }
                         return [null, $tool_input_name];
                     };
