@@ -196,10 +196,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         let modelsUrl = window.aiutomaSettings.restUrl.replace('ai-chat', 'ai-models');
-        if (window.aiutomaSettings.hasDevExtension) {
-            // Always enforce safe mode for models request to prevent it failing during 500 errors
-            modelsUrl += (modelsUrl.includes('?') ? '&' : '?') + 'aiutoma_enforce_safe_mode=1';
-        }
 
         fetch(modelsUrl, {
             headers: { 'X-WP-Nonce': window.aiutomaSettings.nonceRest },
@@ -276,8 +272,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     const importBtn = document.getElementById('aiutoma-import-session');
     const importFile = document.getElementById('aiutoma-import-file');
-    const toggleSafeModeBtn = document.getElementById('aiutoma-toggle-safe-mode');
-    let aiEnforceSafeMode = toggleSafeModeBtn && toggleSafeModeBtn.dataset.active === '1';
 
     const selectAllBtn = document.getElementById('aiutoma-abilities-select-all');
     if (selectAllBtn) {
@@ -432,85 +426,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }).catch(err => {
             skillsContainer.innerHTML = '<p style="margin:0; color: #d63638;">Failed to load skills.</p>';
-        });
-    }
-
-    if (aiEnforceSafeMode) {
-        setTimeout(async () => {
-            try {
-                let testUrl = window.aiutomaSettings.restUrl.replace('ai-chat', 'ai-models');
-                if (window.aiutomaSettings.hasDevExtension) {
-                    testUrl += (testUrl.includes('?') ? '&' : '?') + 'aiutoma_enforce_safe_mode=1';
-                }
-                const backendRes = await fetch(testUrl, {
-                    headers: { 'X-WP-Nonce': window.aiutomaSettings.nonceRest },
-                    cache: 'no-cache'
-                });
-                const frontendRes = await fetch(window.aiutomaSettings.homeUrl);
-
-                if (backendRes.ok && backendRes.status === 200 && frontendRes.ok && frontendRes.status === 200) {
-                    aiEnforceSafeMode = false;
-                    if (toggleSafeModeBtn) {
-                        toggleSafeModeBtn.classList.remove('aiutoma-safe-mode-active');
-                        toggleSafeModeBtn.dataset.active = "0";
-                    }
-                    if (document.getElementById('aiutoma-safemode-status')) {
-                        document.getElementById('aiutoma-safemode-status').innerText = 'Native (All Plugins Active)';
-                    }
-
-                    const toggleUrl = window.aiutomaSettings.restUrl.replace('ai-chat', 'toggle-safe-mode') + (window.aiutomaSettings.hasDevExtension ? '?aiutoma_enforce_safe_mode=1' : '');
-                    await fetch(toggleUrl, {
-                        method: 'POST',
-                        headers: { 'X-WP-Nonce': window.aiutomaSettings.nonceRest, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ force: 'disable' })
-                    });
-
-                    const chatEl = document.getElementById('aiutoma-playground-chat');
-                    if (chatEl) {
-                        chatEl.insertAdjacentHTML('beforeend', '<div class="aiutoma-msg-tool-result aiutoma-success" style="margin-bottom: 10px; padding: 10px; background: #eaf5ea; border-left: 4px solid #46b450; font-size: 13px;"><strong>System:</strong> Initial 500 error check passed. Safe Mode has been automatically disabled.</div>');
-                        chatEl.scrollTop = chatEl.scrollHeight;
-                    }
-                }
-            } catch (e) { }
-        }, 1500);
-    }
-
-    if (toggleSafeModeBtn) {
-        toggleSafeModeBtn.addEventListener('click', async function () {
-            const originalTitle = toggleSafeModeBtn.title;
-            toggleSafeModeBtn.title = 'Toggling...';
-            toggleSafeModeBtn.style.opacity = '0.7';
-            try {
-                const isCurrentlyActive = toggleSafeModeBtn.dataset.active === '1';
-                const actionForce = isCurrentlyActive ? 'disable' : 'enable';
-
-                const toggleUrl = window.aiutomaSettings.restUrl.replace('ai-chat', 'toggle-safe-mode') + (window.aiutomaSettings.hasDevExtension ? '?aiutoma_enforce_safe_mode=1' : '');
-                const response = await fetch(toggleUrl, {
-                    method: 'POST',
-                    headers: { 'X-WP-Nonce': window.aiutomaSettings.nonceRest, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ force: actionForce })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    if (data.safe_mode) {
-                        aiEnforceSafeMode = true;
-                        toggleSafeModeBtn.classList.add('aiutoma-safe-mode-active');
-                        toggleSafeModeBtn.dataset.active = "1";
-                        const statusEl = document.getElementById('aiutoma-safemode-status');
-                        if (statusEl) statusEl.innerText = 'Strict Safe Mode Enforced (.aiutoma_safe)';
-                    } else {
-                        aiEnforceSafeMode = false;
-                        toggleSafeModeBtn.classList.remove('aiutoma-safe-mode-active');
-                        toggleSafeModeBtn.dataset.active = "0";
-                        const statusEl = document.getElementById('aiutoma-safemode-status');
-                        if (statusEl) statusEl.innerText = 'Native (All Plugins Active)';
-                    }
-                }
-            } catch (err) {
-                console.error('Error toggling safe mode', err);
-            }
-            toggleSafeModeBtn.title = originalTitle;
-            toggleSafeModeBtn.style.opacity = '1';
         });
     }
 
@@ -1177,9 +1092,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 try {
                     let fetchUrl = window.aiutomaSettings.restUrl;
-                    if (aiEnforceSafeMode && window.aiutomaSettings.hasDevExtension) {
-                        fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'aiutoma_enforce_safe_mode=1';
-                    }
 
                     if (window.aiutomaSettings.debugMode) console.debug("[Aiutoma Playground] Sending API request:", { url: fetchUrl, data: requestBody });
 
@@ -1215,21 +1127,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         'wpab__core__get-site-info': 'Reading Site Information',
                         'wpab__core__get-user-info': 'Reading User Information',
                         'wpab__core__get-environment-info': 'Reading Environment Information',
-                        'wpab__ai__execute-php': 'Executing PHP Code',
                         'wpab__ai__generate-image': 'Generating Image',
-                        'wpab__ai__read-file': 'Reading File',
-                        'wpab__ai__modify-file': 'Modifying File',
-                        'wpab__ai__list-directory': 'Listing Directory',
                         'wpab__ai__search-web': 'Searching Web',
-                        'wpab__ai__db-query': 'Executing DB Query',
-                        'wpab__ai__manage-plugins': 'Managing Plugins',
-                        'wpab__ai__manage-themes': 'Managing Themes',
                         'wpab__ai__manage-system': 'Managing System Info',
                         'wpab__ai__manage-debug': 'Managing Debug Log',
                         'wpab__ai__manage-posts': 'Managing Posts/Pages',
                         'wpab__ai__manage-comments': 'Managing Comments',
                         'wpab__ai__manage-users': 'Managing Users & Profiles',
-                        'wpab__ai__dev-manage-users': 'Managing Users & Roles (Dev)',
                         'wpab__ai__manage-media': 'Managing Media Library',
                         'wpab__ai__manage-menus': 'Managing Menus',
                         'wpab__ai__manage-woocommerce': 'Managing WooCommerce',
@@ -1255,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (data.previous_results && data.previous_results.length > 0) {
                             let criticalExecuted = false;
                             data.previous_results.forEach((res, index) => {
-                                if (res.name === 'wpab__ai__execute-php' || res.name === 'wpab__ai__modify-file' || res.name === 'wpab__ai__db-query') {
+                                if (res.name.indexOf('manage-') !== -1 || res.name.indexOf('query') !== -1 || res.name.indexOf('execute') !== -1 || res.name.indexOf('modify') !== -1) {
                                     criticalExecuted = true;
                                 }
                                 const node = activeToolNodes[index];
@@ -1288,34 +1192,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 try {
                                     const feResponse = await fetch(window.aiutomaSettings.homeUrl);
                                     if (!feResponse.ok && feResponse.status >= 500) {
-                                        const safeModeMsg = window.aiutomaSettings.hasDevExtension ? ' Safe Mode is being activated automatically.' : '';
-                                        chatEl.insertAdjacentHTML('beforeend', '<div class="aiutoma-msg-error"><strong>System:</strong> ⚠️ WARNING: The frontend of your website is currently returning a ' + feResponse.status + ' Error! Your last action may have broken the site.' + safeModeMsg + '</div>');
-
-                                        if (!aiEnforceSafeMode) {
-                                            aiEnforceSafeMode = true;
-                                            const statusEl = document.getElementById('aiutoma-safemode-status');
-                                            if (statusEl) statusEl.innerText = 'Strict Safe Mode Enforced (Auto-Recovered)';
-
-                                            const toggleSafeModeBtn = document.getElementById('aiutoma-toggle-safe-mode');
-                                            if (toggleSafeModeBtn) {
-                                                toggleSafeModeBtn.classList.add('aiutoma-safe-mode-active');
-                                                toggleSafeModeBtn.dataset.active = "1";
-                                            }
-
-                                            try {
-                                                const toggleUrl = window.aiutomaSettings.restUrl.replace('ai-chat', 'toggle-safe-mode') + (window.aiutomaSettings.hasDevExtension ? '?aiutoma_enforce_safe_mode=1' : '');
-                                                await fetch(toggleUrl, {
-                                                    method: 'POST',
-                                                    headers: { 'X-WP-Nonce': window.aiutomaSettings.nonceRest, 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ force: 'enable' })
-                                                });
-                                            } catch (e) { }
-                                        }
+                                        chatEl.insertAdjacentHTML('beforeend', '<div class="aiutoma-msg-error"><strong>System:</strong> ⚠️ WARNING: The frontend of your website is currently returning a ' + feResponse.status + ' Error! Your last action may have broken the site.</div>');
+                                        document.dispatchEvent(new CustomEvent('aiutoma:site_error', { detail: { status: feResponse.status, source: 'frontend' } }));
 
                                         // Send a prompt to the AI to debug it
                                         setTimeout(() => {
-                                            const safeActiveStr = window.aiutomaSettings.hasDevExtension ? ' Safe Mode is now active.' : '';
-                                            const debugPrompt = "SYSTEM ALERT: The last action caused a Fatal Error on the frontend of the website. The homepage is returning HTTP " + feResponse.status + "." + safeActiveStr + " Please use the wpab__ai__manage-debug tool to enable the debug log, find the error, and fix it immediately.";
+                                            const debugPrompt = "SYSTEM ALERT: The last action caused a Fatal Error on the frontend of the website. The homepage is returning HTTP " + feResponse.status + ". Please use the wpab__ai__manage-debug tool to enable the debug log, find the error, and fix it immediately.";
                                             chatEl.insertAdjacentHTML('beforeend', '<div class="aiutoma-msg-user" style="background-color: #ffebe8; border-left: 4px solid #dc3232;"><strong>System Auto-Prompt:</strong><br>' + debugPrompt + '</div>');
                                             chatEl.scrollTop = chatEl.scrollHeight;
                                             doStep({
@@ -1360,18 +1242,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             let requiresApproval = false;
 
                             data.tools.forEach(t => {
-                                const isDbQuery = t.name.includes('db-query') || t.name.includes('db_query');
-                                const isSensitive = t.name.includes('execute-php') || t.name.includes('execute_php') || isDbQuery || t.name.includes('modify-file') || t.name.includes('modify_file');
+                                const hasCode = Boolean(t.args && t.args.code);
+                                const hasQuery = Boolean(t.args && t.args.query);
+                                const hasContent = Boolean(t.args && t.args.content);
+                                const isSensitive = Boolean(t.requires_confirmation || t.requiresConfirmation || hasCode || hasQuery || hasContent);
 
-                                let needsApproval = t.name.includes('execute-php') || t.name.includes('execute_php') || t.name.includes('modify-file') || t.name.includes('modify_file');
+                                let needsApproval = Boolean(t.requires_confirmation || t.requiresConfirmation || hasCode || hasContent);
 
-                                if (isDbQuery && t.args.query) {
-                                    const qUpper = t.args.query.trim().toUpperCase();
+                                if (hasQuery) {
+                                    const qUpper = String(t.args.query).trim().toUpperCase();
                                     if (!qUpper.startsWith('SELECT') && !qUpper.startsWith('SHOW') && !qUpper.startsWith('DESCRIBE')) {
                                         needsApproval = true;
                                     }
-                                } else if (isDbQuery) {
-                                    needsApproval = true;
                                 }
 
                                 if (needsApproval) {
@@ -1433,15 +1315,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
                                 let displayArgs = '';
-                                console.log(t.name);
-                                if ((t.name.includes('execute-php') || t.name.includes('execute_php')) && t.args.code) {
+                                if (t.args && t.args.code) {
                                     if (window.aiutomaSettings.cmSettings && typeof wp !== 'undefined' && wp.codeEditor) {
                                         const taId = 'aiutoma-cm-' + t.name.replace(/[^a-zA-Z0-9]/g, '') + '-' + Math.floor(Math.random() * 1000000);
                                         let editorCode = t.args.code;
                                         if (!editorCode.trim().startsWith('<?php')) {
                                             editorCode = '<?php\n' + editorCode;
                                         }
-                                        displayArgs = '<strong>PHP Code (Editable):</strong><br><textarea id="' + taId + '" class="aiutoma-code-ta">' + editorCode.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
+                                        displayArgs = '<strong>Code (Editable):</strong><br><textarea id="' + taId + '" class="aiutoma-code-ta">' + editorCode.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
                                         const otherArgs = { ...t.args };
                                         delete otherArgs.code;
                                         if (Object.keys(otherArgs).length > 0) {
@@ -1472,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         codeStr = codeStr.replace(/([a-zA-Z_]+)\s*\(/g, '<span class="aiutoma-hl-func">$1</span>(');
                                         codeStr = codeStr.replace(/AIUTOMA_COLOR_([a-zA-Z0-9]+)/g, '"color: #$1;"');
 
-                                        displayArgs = '<strong>PHP Code:</strong><br><pre class="aiutoma-msg-sql-pre"><code>' + codeStr + '</code></pre>';
+                                        displayArgs = '<strong>Code:</strong><br><pre class="aiutoma-msg-sql-pre"><code>' + codeStr + '</code></pre>';
 
                                         const otherArgs = { ...t.args };
                                         delete otherArgs.code;
@@ -1480,10 +1361,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                             displayArgs += '<br><strong>Other Arguments:</strong><br>' + JSON.stringify(otherArgs, null, 2);
                                         }
                                     }
-                                } else if ((t.name.includes('db-query') || t.name.includes('db_query')) && t.args.query) {
+                                } else if (t.args && t.args.query) {
                                     if (window.aiutomaSettings.cmSqlSettings && typeof wp !== 'undefined' && wp.codeEditor) {
                                         const taId = 'aiutoma-cm-' + t.name.replace(/[^a-zA-Z0-9]/g, '') + '-' + Math.floor(Math.random() * 1000000);
-                                        displayArgs = '<strong>SQL Query (Editable):</strong><br><textarea id="' + taId + '" class="aiutoma-code-ta">' + t.args.query.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
+                                        displayArgs = '<strong>Query (Editable):</strong><br><textarea id="' + taId + '" class="aiutoma-code-ta">' + t.args.query.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
                                         const otherArgs = { ...t.args };
                                         delete otherArgs.query;
                                         if (Object.keys(otherArgs).length > 0) {
@@ -1509,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         const sqlKeywordRegex = new RegExp('\\b(' + sqlKeywords.join('|') + ')\\b', 'gi');
                                         queryStr = queryStr.replace(sqlKeywordRegex, '<span class="aiutoma-hl-keyword">$1</span>');
 
-                                        displayArgs = '<strong>SQL Query:</strong><br><pre class="aiutoma-msg-sql-pre"><code>' + queryStr + '</code></pre>';
+                                        displayArgs = '<strong>Query:</strong><br><pre class="aiutoma-msg-sql-pre"><code>' + queryStr + '</code></pre>';
 
                                         const otherArgs = { ...t.args };
                                         delete otherArgs.query;
@@ -1517,10 +1398,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                             displayArgs += '<br><strong>Other Arguments:</strong><br>' + JSON.stringify(otherArgs, null, 2);
                                         }
                                     }
-                                } else if ((t.name.includes('modify-file') || t.name.includes('modify_file')) && t.args.content) {
+                                } else if (t.args && t.args.content) {
                                     if (window.aiutomaSettings.cmSettings && typeof wp !== 'undefined' && wp.codeEditor) {
                                         const taId = 'aiutoma-cm-' + t.name.replace(/[^a-zA-Z0-9]/g, '') + '-' + Math.floor(Math.random() * 1000000);
-                                        displayArgs = '<strong>File Content (Editable):</strong><br><textarea id="' + taId + '" class="aiutoma-code-ta">' + t.args.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
+                                        displayArgs = '<strong>Content (Editable):</strong><br><textarea id="' + taId + '" class="aiutoma-code-ta">' + t.args.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
                                         const otherArgs = { ...t.args };
                                         delete otherArgs.content;
                                         if (Object.keys(otherArgs).length > 0) {
@@ -1541,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                             }
                                         }, 100);
                                     } else {
-                                        displayArgs = '<strong>File Content:</strong><br><pre class="aiutoma-msg-sql-pre"><code>' + t.args.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>';
+                                        displayArgs = '<strong>Content:</strong><br><pre class="aiutoma-msg-sql-pre"><code>' + t.args.content.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>';
                                         const otherArgs = { ...t.args };
                                         delete otherArgs.content;
                                         if (Object.keys(otherArgs).length > 0) {
@@ -1736,26 +1617,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     const isSiteError = e.status >= 500 || (e.message && e.message.includes('500'));
 
                     if (!isAutoRetry && isSiteError) {
-                        if (!aiEnforceSafeMode) {
-                            aiEnforceSafeMode = true;
-                            const statusEl = document.getElementById('aiutoma-safemode-status');
-                            if (statusEl) statusEl.innerText = 'Strict Safe Mode Enforced (Auto-Recovered)';
-                            const toggleBtn = document.getElementById('aiutoma-toggle-safe-mode');
-                            if (toggleBtn) {
-                                toggleBtn.classList.add('aiutoma-safe-mode-active');
-                                toggleBtn.dataset.active = "1";
-                            }
-                            const toggleUrl = window.aiutomaSettings.restUrl.replace('ai-chat', 'toggle-safe-mode') + (window.aiutomaSettings.hasDevExtension ? '?aiutoma_enforce_safe_mode=1' : '');
-                            fetch(toggleUrl, {
-                                method: 'POST',
-                                headers: { 'X-WP-Nonce': window.aiutomaSettings.nonceRest, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ force: 'enable' })
-                            }).catch(() => { });
-                        }
+                        document.dispatchEvent(new CustomEvent('aiutoma:site_error', { detail: { error: e, source: 'rest' } }));
 
                         setTimeout(() => {
-                            const safeActiveStr = window.aiutomaSettings.hasDevExtension ? ' Safe Mode has been activated.' : '';
-                            const errorPrompt = "SYSTEM ALERT: The last action resulted in a Fatal Error (" + (e.message || 'Unknown error') + ")." + safeActiveStr + " Please use the wpab__ai__manage-debug tool to enable the debug log, find the error, and fix it.";
+                            const errorPrompt = "SYSTEM ALERT: The last action resulted in a Fatal Error (" + (e.message || 'Unknown error') + "). Please use the wpab__ai__manage-debug tool to enable the debug log, find the error, and fix it.";
                             chatEl.insertAdjacentHTML('beforeend', '<div class="aiutoma-msg-user" style="background-color: #ffebe8; border-left: 4px solid #dc3232;"><strong>System Auto-Prompt:</strong><br>' + errorPrompt + '</div>');
                             chatEl.scrollTop = chatEl.scrollHeight;
                             doStep({

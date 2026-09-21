@@ -79,17 +79,6 @@
     margin-top: 3px;
 }
 
-.aiutoma-mcp-safe-mode-url {
-    background: #fff;
-    padding: 10px;
-    font-weight: bold;
-    overflow-x: auto;
-}
-
-.aiutoma-mcp-safe-mode-url a {
-    text-decoration: none;
-}
-
 /* Prompt Credential Customizer */
 .aiutoma-prompt-customizer {
     background: #fff;
@@ -132,12 +121,86 @@
     display: flex;
     gap: 5px;
     position: relative;
+    align-items: center;
+}
+
+.aiutoma-prompt-customizer #aiutoma_prompt_app_password {
+    height: 30px;
+    min-height: 30px;
+    box-sizing: border-box;
+}
+
+.aiutoma-prompt-customizer #aiutoma_prompt_toggle_pass {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.aiutoma-prompt-customizer #aiutoma_prompt_toggle_pass .dashicons {
+    margin: 0;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    line-height: 1 !important;
 }
 
 .aiutoma-prompt-customizer #aiutoma_prompt_clear_pass {
     cursor: pointer;
-    font-size: 16px;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
     line-height: 1;
-    padding: 0 8px;
+    box-sizing: border-box;
+}
+
+#aiutoma_prompt_status_msg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #666;
+}
+
+#aiutoma_prompt_status_msg .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 1 !important;
+}
+
+/* Clean Flexbox centering for all buttons containing Dashicons */
+.wrap .notice .button,
+.aiutoma-mcp-tab-content .button,
+.aiutoma-prompt-customizer .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    vertical-align: middle;
+}
+
+.wrap .notice .button .dashicons,
+.aiutoma-mcp-tab-content .button .dashicons,
+.aiutoma-prompt-customizer .button .dashicons {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    line-height: 1 !important;
+    vertical-align: middle;
+    margin: 0;
 }
 

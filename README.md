@@ -158,8 +158,18 @@ This plugin connects to external third-party services to provide artificial inte
 - **Provider:** WordPress.org
 - **Terms & Privacy:** [terms of service](https://wordpress.org/about/privacy/) | [privacy policy](https://wordpress.org/about/privacy/)
 
-## 📦 Third-Party Libraries & Source Code
-In compliance with WordPress.org Guidelines, public source repositories and build instructions for bundled/compiled assets are documented below:
+## 🔒 Security & Remote Execution Boundaries
+In strict compliance with WordPress.org security policies:
+- **No Remote Administration:** External MCP and OpenAPI integrations only expose content and data abilities (such as querying published posts, catalog lookup, or drafting content). They strictly prohibit remote installation, activation, or modification of plugins/themes, arbitrary code execution, filesystem modifications, or user management.
+- **No Arbitrary PHP Execution:** The plugin does not execute arbitrary PHP code, run shell/terminal commands, or alter theme/plugin/core files. All actions use official, sandboxed WordPress APIs.
+
+## 📦 Source Code & Third-Party Libraries
+In compliance with WordPress.org Guidelines, the public source code repository, custom scripts, and third-party libraries included in this plugin are documented below:
+
+- **Aiutoma Plugin Source Code Repository:**
+  - **Public Repository:** [https://github.com/frafish/aiutoma](https://github.com/frafish/aiutoma)
+  - **License:** GPL-3.0-or-later
+  - **Native Plugin Scripts & Stylesheets:** All first-party JavaScript files (including [`modules/editor/assets/js/agent.js`](file:///var/www/html/wp-content/plugins/aiutoma/modules/editor/assets/js/agent.js), [`modules/editor/assets/js/inline-prompt-block.js`](file:///var/www/html/wp-content/plugins/aiutoma/modules/editor/assets/js/inline-prompt-block.js), [`modules/editor/assets/js/media-integration.js`](file:///var/www/html/wp-content/plugins/aiutoma/modules/editor/assets/js/media-integration.js), [`modules/playground/assets/js/playground.js`](file:///var/www/html/wp-content/plugins/aiutoma/modules/playground/assets/js/playground.js), [`modules/chatbot/assets/js/chatbot.js`](file:///var/www/html/wp-content/plugins/aiutoma/modules/chatbot/assets/js/chatbot.js), and [`modules/mcp/assets/js/mcp.js`](file:///var/www/html/wp-content/plugins/aiutoma/modules/mcp/assets/js/mcp.js)) and CSS stylesheets are original, uncompiled, human-readable source code written directly in vanilla JavaScript, jQuery, and CSS. They are authored by hand and require no compilation, bundling, or transpilation build steps.
 
 - **AI Request Logs Dashboard:**
   - **Source Project:** Official WordPress AI Plugin ([WordPress/ai](https://github.com/WordPress/ai))

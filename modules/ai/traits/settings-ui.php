@@ -108,28 +108,7 @@ trait SettingsUi {
                             <p class="description"><?php esc_html_e('Legacy API token. Use this as X-MCP-API-Key header for simple GPT Custom Actions and Webhooks.', 'aiutoma'); ?></p>
                         </td>
                     </tr>
-                    <tr>
-                        <th scope="row"><?php esc_html_e('Developer Extension', 'aiutoma'); ?></th>
-                        <td>
-                            <?php if (defined('AIUTOMA_DEV_VERSION')): ?>
-                                <p style="color: #00a32a; font-weight: 600;">
-                                    <span class="dashicons dashicons-yes-alt"></span>
-                                    <?php
-                                    /* translators: %s: version number */
-                                    printf(esc_html__('Developer Extension is ACTIVE (v%s).', 'aiutoma'), esc_html(AIUTOMA_DEV_VERSION));
-                                    ?>
-                                </p>
-                                <p class="description"><?php esc_html_e('Developer abilities (Execute PHP Code, Modify Files, Run WP-CLI) are unlocked with interactive review and rollbacks.', 'aiutoma'); ?></p>
-                            <?php else: ?>
-                                <p style="color: #646970; font-weight: 600;">
-                                    <span class="dashicons dashicons-admin-plugins"></span> <?php esc_html_e('Developer Extension is NOT ACTIVE.', 'aiutoma'); ?>
-                                </p>
-                                <p class="description">
-                                    <?php esc_html_e('In compliance with WordPress.org repository guidelines, arbitrary PHP code execution, file modifications, and WP-CLI commands are managed via the companion "Aiutoma Developer Extension". Activate the extension to unlock these abilities.', 'aiutoma'); ?>
-                                </p>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
+                    <?php do_action('aiutoma_settings_table_rows'); ?>
                 </table>
                 
                 <?php submit_button(__('Save Settings', 'aiutoma'), 'primary', 'aiutoma_save_settings'); ?>

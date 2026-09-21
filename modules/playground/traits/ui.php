@@ -139,13 +139,7 @@ trait Ui
                             <label class="aiutoma-auto-approve-label">
                                 <input type="checkbox" id="aiutoma-global-auto-approve"> <abbr title="<?php esc_attr_e('Skip approvation and Auto-approve tasks for this session', 'aiutoma'); ?>"><?php esc_html_e('Auto-approve', 'aiutoma'); ?></abbr>
                             </label>
-                            <?php if (apply_filters('aiutoma_enable_safe_mode_ui', false)) : 
-                                $is_safe = apply_filters('aiutoma_is_safe_mode_active', false);
-                            ?>
-                                <button type="button" id="aiutoma-toggle-safe-mode" class="button button-secondary aiutoma-session-btn <?php echo $is_safe ? 'aiutoma-safe-mode-active' : ''; ?>" title="<?php esc_attr_e('Toggle AI Safe Mode', 'aiutoma'); ?>" data-active="<?php echo $is_safe ? '1' : '0'; ?>">
-                                    <span class="dashicons dashicons-shield"></span>
-                                </button>
-                            <?php endif; ?>
+                            <?php do_action('aiutoma_playground_toolbar_actions'); ?>
                             <button type="button" id="aiutoma-playground-send" class="button button-primary button-large" title="<?php esc_attr_e('Send', 'aiutoma'); ?>">
                                 <span class="dashicons dashicons-controls-play"></span>
                             </button>
@@ -387,54 +381,26 @@ trait Ui
                                     $date = filemtime($file);
                                     $desc = '';
                                     $extra_html = '';
-                                    if ($data['action'] === 'modify-file') {
-                                        $content_base = defined('WP_CONTENT_DIR') ? constant('WP_CONTENT_DIR') : dirname(wp_upload_dir()['basedir']);
-                                        $rel_path = str_replace(wp_normalize_path($content_base), '', wp_normalize_path($data['original_path']));
-                                        $desc = 'Modified file: ' . ltrim($rel_path, '/');
-                                    } elseif ($data['action'] === 'db-query') {
-                                        $desc = 'DB ' . $data['type'] . ' on table: ' . $data['table'];
-                                        if (!empty($data['query'])) {
-                                            $extra_html .= '<li><strong>Query:</strong> <code>' . esc_html(strlen($data['query']) > 100 ? substr($data['query'], 0, 100) . '...' : $data['query']) . '</code></li>';
-                                        }
-                                    } elseif ($data['action'] === 'update-options') {
-                                        $opts = array_keys($data['options']);
-                                        $desc = 'Options updated: ' . implode(', ', $opts);
-                                    } elseif ($data['action'] === 'execute-php-rollback' || $data['action'] === 'global-rollback') {
+                                    $custom_item = apply_filters('aiutoma_backup_item_display', null, $data, $filename);
+                                    if (is_array($custom_item)) {
+                                        $desc = $custom_item['desc'] ?? '';
+                                        $extra_html = $custom_item['extra_html'] ?? '';
+                                    } elseif ($data['action'] === 'update-options' || $data['action'] === 'global-rollback' || $data['action'] === 'cron-rollback') {
                                         $details = [];
-                                        if (!empty($data['files'])) {
-                                            $details[] = count($data['files']) . ' files';
-                                            $file_links = [];
-                                            foreach ($data['files'] as $i => $f) {
-                                                $base = basename($f['path']);
-                                                if ($f['is_new']) {
-                                                    $file_links[] = esc_html($base) . ' (New)';
-                                                } else {
-                                                    $dl_url = rest_url('aiutoma/v1/download-ai-backup?id=' . $filename . '&type=file&index=' . $i . '&_wpnonce=' . wp_create_nonce('wp_rest'));
-                                                    $file_links[] = esc_html($base) . ' <a href="' . esc_url($dl_url) . '" target="_blank" title="Download Original">(Download)</a>';
-                                                }
-                                            }
-                                            $extra_html .= '<li><strong>Files:</strong> ' . implode(', ', $file_links) . '</li>';
-                                        }
-                                        if (!empty($data['db_changes'])) {
-                                            $details[] = count($data['db_changes']) . ' DB changes';
-                                            $tables = array_unique(array_column($data['db_changes'], 'table'));
-                                            $dl_url = rest_url('aiutoma/v1/download-ai-backup?id=' . $filename . '&type=sql&_wpnonce=' . wp_create_nonce('wp_rest'));
-                                            $extra_html .= '<li><strong>Tables:</strong> ' . esc_html(implode(', ', $tables)) . ' <a href="' . esc_url($dl_url) . '" target="_blank" title="Download SQL Dump">(Download SQL)</a></li>';
-                                        }
                                         if (!empty($data['options'])) {
-                                            $details[] = count($data['options']) . ' options';
-                                            $extra_html .= '<li><strong>Options:</strong> ' . esc_html(implode(', ', array_keys($data['options']))) . '</li>';
+                                            $opts = array_keys($data['options']);
+                                            $details[] = count($opts) . ' ' . esc_html__('options', 'aiutoma');
+                                            $extra_html .= '<li><strong>' . esc_html__('Options:', 'aiutoma') . '</strong> ' . esc_html(implode(', ', $opts)) . '</li>';
                                         }
                                         if (!empty($data['posts'])) {
-                                            $details[] = count($data['posts']) . ' posts';
-                                            $extra_html .= '<li><strong>Posts:</strong> ' . esc_html(implode(', ', array_keys($data['posts']))) . '</li>';
+                                            $details[] = count($data['posts']) . ' ' . esc_html__('posts', 'aiutoma');
+                                            $extra_html .= '<li><strong>' . esc_html__('Posts:', 'aiutoma') . '</strong> ' . esc_html(implode(', ', array_keys($data['posts']))) . '</li>';
                                         }
-                                        $desc = 'AI Action Rollback' . (!empty($details) ? ' (' . implode(', ', $details) . ')' : '');
-                                    } elseif ($data['action'] === 'cron-rollback') {
-                                        $desc = 'Automated Task Rollback';
-                                    } elseif ($data['action'] === 'plugin-backup') {
-                                        $desc = 'Plugin Backup: ' . esc_html($data['slug']);
-                                        $extra_html .= '<li><strong>File:</strong> ' . esc_html(basename($data['zip_path'])) . '</li>';
+                                        if ($data['action'] === 'cron-rollback') {
+                                            $desc = esc_html__('Automated Task Rollback', 'aiutoma');
+                                        } else {
+                                            $desc = esc_html__('AI Action Rollback', 'aiutoma') . (!empty($details) ? ' (' . implode(', ', $details) . ')' : '');
+                                        }
                                     }
 
                                     if ($extra_html) {
@@ -510,7 +476,6 @@ trait Ui
             <?php
             /**
              * Fires at the bottom of the Playground sidebar panel.
-             * Used by developer companion plugins (like Aiutoma Dev) to render Safe Mode controls and emergency notices.
              */
             do_action('aiutoma_playground_sidebar_bottom');
             ?>
@@ -526,7 +491,7 @@ trait Ui
             $prev = $user->syntax_highlighting;
             $user->syntax_highlighting = 'true';
 
-            if (defined('AIUTOMA_DEV_VERSION') || apply_filters('aiutoma_enable_php_codemirror', false)) {
+            if (apply_filters('aiutoma_enable_php_codemirror', false)) {
                 \Aiutoma\Modules\Ai\Ai::instance()->cm_settings = wp_enqueue_code_editor(array('type' => 'application/x-httpd-php'));
             } else {
                 \Aiutoma\Modules\Ai\Ai::instance()->cm_settings = null;
@@ -559,10 +524,10 @@ trait Ui
                 'objectType' => 'toplevel_page_aiutoma',
                 'cmSettings' => \Aiutoma\Modules\Ai\Ai::instance()->cm_settings,
                 'cmSqlSettings' => \Aiutoma\Modules\Ai\Ai::instance()->cm_sql_settings ?: ['codemirror' => ['mode' => 'sql', 'lineNumbers' => true]],
-                'hasDevExtension' => defined('AIUTOMA_DEV_VERSION'),
                 'debugMode' => (defined('WP_DEBUG') && WP_DEBUG) ? true : false,
                 'ragUrl' => esc_url_raw(rest_url('aiutoma/v1/get-rag-data'))
             ];
+            $aiutoma_settings = apply_filters('aiutoma_playground_settings', $aiutoma_settings);
             wp_add_inline_script('aiutoma-playground-script', 'window.aiutomaSettings = ' . wp_json_encode($aiutoma_settings) . ';', 'before');
 
             $session_conv_id = null;

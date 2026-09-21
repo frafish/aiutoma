@@ -3,7 +3,7 @@ Contributors: frapesce
 Tags: ai, agent, free tier, mcp, gutenberg
 Requires at least: 7.0
 Tested up to: 7.1
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 Requires PHP: 8.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -169,9 +169,14 @@ This plugin connects to external third-party services to provide artificial inte
 * **Terms of Service:** [terms of service](https://wordpress.org/about/privacy/)
 * **Privacy Policy:** [privacy policy](https://wordpress.org/about/privacy/)
 
-== Third-Party Libraries & Source Code ==
+== Source Code & Third-Party Libraries ==
 
-In compliance with WordPress.org Guideline 4 (Code must be mostly human-readable), the public source code and build instructions for all third-party and compiled/minified assets included in this plugin are documented below:
+In compliance with WordPress.org Guideline 4 (Code must be mostly human-readable), the public source code repository, custom scripts, and third-party libraries included in this plugin are documented below:
+
+*   **Aiutoma Plugin Source Code Repository**
+    *   **Public Repository:** https://github.com/frafish/aiutoma
+    *   **License:** GPLv3 or later (https://www.gnu.org/licenses/gpl-3.0.html)
+    *   **Native Plugin Scripts & Stylesheets:** All first-party JavaScript files (such as `modules/editor/assets/js/agent.js`, `modules/editor/assets/js/inline-prompt-block.js`, `modules/editor/assets/js/media-integration.js`, `modules/playground/assets/js/playground.js`, `modules/chatbot/assets/js/chatbot.js`, and `modules/mcp/assets/js/mcp.js`) and CSS stylesheets are original, uncompiled, human-readable source code written directly in vanilla JavaScript, jQuery, and CSS. They are authored by hand and require no compilation, bundling, or transpilation build steps.
 
 *   **AI Request Logs Dashboard**
     *   **Description:** React and DataViews dashboard for viewing and monitoring AI request logs, latency, and token consumption under Tools.
@@ -181,7 +186,7 @@ In compliance with WordPress.org Guideline 4 (Code must be mostly human-readable
     *   **Local Uncompiled Source:** Included in `modules/ai/assets/tokens-log/src/`
     *   **License:** GPL-2.0-or-later (https://github.com/WordPress/ai/blob/trunk/LICENSE.md)
     *   **Copyright:** WordPress.org Contributors & Plugin Contributors
-    *   **Build Tool & Instructions:** Built using `@wordpress/scripts`. To compile from source: clone `https://github.com/WordPress/ai`, run `npm install`, and execute `npx wp-scripts build src/admin/ai-request-logs/index.tsx --output-path=build-scripts/admin`.
+    *   **Build Tool & Instructions:** Built using @wordpress/scripts. To compile from source: clone https://github.com/WordPress/ai , run npm install, and execute npx wp-scripts build src/admin/ai-request-logs/index.tsx --output-path=build-scripts/admin .
 
 *   **Select2**
     *   **Description:** Accessible, searchable replacement for dropdown select elements.
@@ -215,9 +220,19 @@ Yes. Aiutoma operates with strict boundaries. It cannot modify WordPress core fi
 Yes! Aiutoma is designed to satisfy the transparency requirements of the EU AI Act (Regulation (EU) 2024/1689, Article 50). The Frontend Chatbot prominently notifies users that they are interacting with an AI system, displays permanent accuracy disclaimers, clearly identifies when a human operator takes over, and provides direct links to your site's Privacy Policy.
 
 = Can I run custom PHP scripts or modify theme/plugin files? =
-For maximum security and 100% compliance with WordPress.org guidelines, the core Aiutoma plugin does not execute arbitrary PHP code. If you require advanced developer tools (PHP execution, file modification, WP-CLI), simply activate the official companion "Aiutoma Dev".
+For maximum security and 100% compliance with WordPress.org guidelines, the plugin does not execute arbitrary PHP code, edit theme/plugin files, or run terminal commands. All operations strictly adhere to safe, sandboxed WordPress APIs.
+
+= What can external AI clients (Claude Desktop, Custom GPTs) do via MCP / OpenAPI? =
+Aiutoma strictly complies with WordPress.org guidelines regarding remote execution. External MCP and OpenAPI integrations only expose content and data abilities (such as querying published posts, catalog lookup, or drafting content). In accordance with WordPress.org security policies, Aiutoma strictly blocks remote administration: it does not permit remote installation, updating, or activation of plugins/themes, arbitrary code execution, filesystem modifications, or user management.
 
 == Changelog ==
+
+= 1.0.2 =
+* Hardened permission callbacks across all abilities with fail-closed checks on the abilities dispatcher.
+* Removed administrative and filesystem abilities to strictly comply with WordPress.org security policies.
+* Enforced non-administrative security filters on remote MCP and OpenAPI endpoints.
+* Refactored uncompiled JavaScript assets for readability and documented the public source repository.
+* Cleaned up development checklist artifacts.
 
 = 1.0.1 =
 * Added Amazon AWS AI (Bedrock) connector support.

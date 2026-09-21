@@ -204,7 +204,7 @@ trait WordPress
 
                     // Explicitly block any attempt to alter roles, capabilities, passwords, or usernames
                     if (isset($args['role']) || isset($args['roles']) || isset($args['capabilities'])) {
-                        return new \WP_Error('forbidden_field', __('Modifying roles or capabilities is not permitted. Please use the Developer Extension for role management.', 'aiutoma'));
+                        return new \WP_Error('forbidden_field', __('Modifying roles or capabilities is not permitted via this ability for security reasons.', 'aiutoma'));
                     }
                     if (isset($args['user_pass']) || isset($args['password'])) {
                         return new \WP_Error('forbidden_field', __('Password modifications are not permitted via this ability for security reasons.', 'aiutoma'));

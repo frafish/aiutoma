@@ -1,3 +1,15 @@
+/**
+ * Aiutoma Editor Agent
+ *
+ * Original uncompiled source code written in vanilla JavaScript & jQuery.
+ * This file is authored directly and is not generated, compiled, or minified by any build tool.
+ *
+ * Public repository: https://github.com/frafish/aiutoma
+ *
+ * @package Aiutoma
+ * @license GPL-3.0-or-later
+ */
+
 jQuery(document).ready(function($) {
     const $chatbot = $('#aiutoma-agent-chatbot');
     const $header = $('#aiutoma-agent-header');
@@ -248,7 +260,12 @@ jQuery(document).ready(function($) {
                 content = $('#newcontent').val() || '';
             }
             if (content) {
-                context += "Current File Content:\n" + content + "\n\nCRITICAL INSTRUCTION: You are assisting with editing raw code. To provide modified code, return ONLY the full updated code wrapped in a markdown code block (e.g. ```php, ```css, etc). Do NOT use partial snippets. You MUST ALWAYS return the original file in its ENTIRETY, modified where requested, adding appropriate comments to explain your changes. The code inside this block will completely replace the content of the current file in the editor.\n";
+                context += "Current File Content:\n" + content + "\n\n" +
+                    "CRITICAL INSTRUCTION: You are assisting with editing raw code.\n" +
+                    "To provide modified code, return ONLY the full updated code wrapped in a markdown code block (e.g. ```php, ```css, etc).\n" +
+                    "Do NOT use partial snippets. You MUST ALWAYS return the original file in its ENTIRETY, modified where requested, " +
+                    "adding appropriate comments to explain your changes.\n" +
+                    "The code inside this block will completely replace the content of the current file in the editor.\n";
             }
             return context;
         }
@@ -262,7 +279,37 @@ jQuery(document).ready(function($) {
         // Attempt to get Gutenberg content if available
         let content = '';
         if (window.elementor) {
-            context += "CRITICAL INSTRUCTION: You are interacting directly with the active Elementor Editor. To INSERT or APPEND new widgets or sections, you MUST output a JSON representation of the Elementor models inside an ```elementor-insert code block. Do NOT use standard ```json blocks. The JSON must be an array of Elementor models or a single model. Example:\n```elementor-insert\n{\n  \"id\": \"abc1234\",\n  \"elType\": \"section\",\n  \"elements\": [\n    {\n      \"id\": \"def5678\",\n      \"elType\": \"column\",\n      \"elements\": [\n        {\n          \"id\": \"xyz9876\",\n          \"elType\": \"widget\",\n          \"widgetType\": \"heading\",\n          \"settings\": { \"title\": \"Hello World\" }\n        }\n      ]\n    }\n  ]\n}\n```\nCRITICAL WIDGET PROPERTIES:\n- For 'text-editor' widgets, the HTML text MUST be placed in `settings.editor` (e.g. `\"settings\": { \"editor\": \"<p>My text</p>\" }`). Do not use 'content' or 'text'.\n- For 'image' widgets, use `settings.image.url` (e.g. `\"settings\": { \"image\": { \"url\": \"https://example.com/image.jpg\" } }`).\nTo completely REPLACE the entire page content, use an ```elementor-replace code block.\nThe system will parse this JSON and inject it into the editor in real-time.\n";
+            context += [
+                "CRITICAL INSTRUCTION: You are interacting directly with the active Elementor Editor.",
+                "To INSERT or APPEND new widgets or sections, you MUST output a JSON representation of the Elementor models inside an ```elementor-insert code block.",
+                "Do NOT use standard ```json blocks. The JSON must be an array of Elementor models or a single model. Example:",
+                "```elementor-insert",
+                "{",
+                '  "id": "abc1234",',
+                '  "elType": "section",',
+                '  "elements": [',
+                '    {',
+                '      "id": "def5678",',
+                '      "elType": "column",',
+                '      "elements": [',
+                '        {',
+                '          "id": "xyz9876",',
+                '          "elType": "widget",',
+                '          "widgetType": "heading",',
+                '          "settings": { "title": "Hello World" }',
+                '        }',
+                '      ]',
+                '    }',
+                '  ]',
+                "}",
+                "```",
+                "CRITICAL WIDGET PROPERTIES:",
+                "- For 'text-editor' widgets, the HTML text MUST be placed in `settings.editor` (e.g. `\"settings\": { \"editor\": \"<p>My text</p>\" }`). Do not use 'content' or 'text'.",
+                "- For 'image' widgets, use `settings.image.url` (e.g. `\"settings\": { \"image\": { \"url\": \"https://example.com/image.jpg\" } }`).",
+                "To completely REPLACE the entire page content, use an ```elementor-replace code block.",
+                "The system will parse this JSON and inject it into the editor in real-time.",
+                ""
+            ].join("\n");
         } else if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/block-editor')) {
             const blockEditorData = wp.data.select('core/block-editor');
             const blocks = blockEditorData.getBlocks();
@@ -344,7 +391,26 @@ jQuery(document).ready(function($) {
                 }
             } catch (e) {}
             
-            context += "CRITICAL INSTRUCTION: You are interacting directly with the active Gutenberg Block Editor. The LIVE GUTENBERG CANVAS above is authoritative, including unsaved changes. By default, you MUST NEVER replace the full page content unless explicitly asked. Always prefer to APPEND new blocks (or insert them at the current position). To INSERT or APPEND new blocks, you MUST output the raw Gutenberg HTML inside a ```gutenberg-insert code block. Do NOT use standard ```html blocks.\n\nCRITICAL RULE FOR BLOCKS: You MUST PRESERVE AND INCLUDE ALL Gutenberg structural comments (e.g., <!-- wp:columns -->, <!-- wp:heading -->, <!-- /wp:columns -->). NEVER strip them out. If you only output the raw HTML tags (like <div>) without the <!-- wp: --> comments, the editor will fail to parse them as individual blocks and will group them into a single uneditable HTML block. The inner HTML MUST perfectly match the block wrapper comments. For complex layouts like columns, you MUST use the exact structure with the `wp-block-columns` and `wp-block-column` wrapper divs AND their corresponding <!-- wp:column --> comments.\nTo completely REPLACE the entire page content, use a ```gutenberg-replace code block.\nTo EDIT and REPLACE the user's currently selected block(s), use a ```gutenberg-edit code block. \nIMPORTANT: ALWAYS use these markdown code blocks and NEVER strip the <!-- wp: --> tags!\nIf you cannot perfectly remember the exact HTML wrapper for a complex core block, it is safer to use a `core/html` block and insert standard raw HTML.\n";
+            context += [
+                "CRITICAL INSTRUCTION: You are interacting directly with the active Gutenberg Block Editor.",
+                "The LIVE GUTENBERG CANVAS above is authoritative, including unsaved changes.",
+                "By default, you MUST NEVER replace the full page content unless explicitly asked.",
+                "Always prefer to APPEND new blocks (or insert them at the current position).",
+                "To INSERT or APPEND new blocks, you MUST output the raw Gutenberg HTML inside a ```gutenberg-insert code block.",
+                "Do NOT use standard ```html blocks.",
+                "",
+                "CRITICAL RULE FOR BLOCKS: You MUST PRESERVE AND INCLUDE ALL Gutenberg structural comments (e.g., <!-- wp:columns -->, <!-- wp:heading -->, <!-- /wp:columns -->).",
+                "NEVER strip them out. If you only output the raw HTML tags (like <div>) without the <!-- wp: --> comments, " +
+                "the editor will fail to parse them as individual blocks and will group them into a single uneditable HTML block.",
+                "The inner HTML MUST perfectly match the block wrapper comments.",
+                "For complex layouts like columns, you MUST use the exact structure with the `wp-block-columns` and `wp-block-column` " +
+                "wrapper divs AND their corresponding <!-- wp:column --> comments.",
+                "To completely REPLACE the entire page content, use a ```gutenberg-replace code block.",
+                "To EDIT and REPLACE the user's currently selected block(s), use a ```gutenberg-edit code block.",
+                "IMPORTANT: ALWAYS use these markdown code blocks and NEVER strip the <!-- wp: --> tags!",
+                "If you cannot perfectly remember the exact HTML wrapper for a complex core block, it is safer to use a `core/html` block and insert standard raw HTML.",
+                ""
+            ].join("\n");
         } else {
             content = $('#content').val() || $('#description').val() || '';
             if (content) context += "Content/Description:\n" + content + "\n";
@@ -694,7 +760,25 @@ jQuery(document).ready(function($) {
             setTimeout(function() {
                 const $elementsWrapper = $('#elementor-panel-elements-wrapper');
                 if ($elementsWrapper.length) {
-                    const $aiButton = $('<div class="elementor-element-wrapper" style="width: 100%; padding: 10px; cursor: pointer; text-align: center; background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899); color: white; border-radius: 4px; margin-bottom: 15px; font-weight: bold; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;"><span class="dashicons dashicons-superhero" style="margin-right: 8px; vertical-align: middle;"></span> <span style="vertical-align: middle;">Build with Aiutoma</span></div>');
+                    const btnStyle = [
+                        'width: 100%',
+                        'padding: 10px',
+                        'cursor: pointer',
+                        'text-align: center',
+                        'background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899)',
+                        'color: white',
+                        'border-radius: 4px',
+                        'margin-bottom: 15px',
+                        'font-weight: bold',
+                        'box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        'transition: transform 0.2s, box-shadow 0.2s'
+                    ].join('; ');
+                    const $aiButton = $(
+                        '<div class="elementor-element-wrapper" style="' + btnStyle + '">' +
+                        '<span class="dashicons dashicons-superhero" style="margin-right: 8px; vertical-align: middle;"></span> ' +
+                        '<span style="vertical-align: middle;">Build with Aiutoma</span>' +
+                        '</div>'
+                    );
                     
                     $aiButton.on('mouseenter', function() {
                         $(this).css('transform', 'translateY(-2px)');
@@ -878,7 +962,11 @@ jQuery(document).ready(function($) {
         }
 
         // Deactivate Aiutoma when user clicks a native Gutenberg tab (Page, Block, etc.)
-        $(document).on('click', '.editor-sidebar__panel-tabs button[role="tab"]:not(#aiutoma-agent-tab-btn), .interface-complementary-area-header button[role="tab"]:not(#aiutoma-agent-tab-btn)', function() {
+        const nativeTabSelectors = [
+            '.editor-sidebar__panel-tabs button[role="tab"]:not(#aiutoma-agent-tab-btn)',
+            '.interface-complementary-area-header button[role="tab"]:not(#aiutoma-agent-tab-btn)'
+        ].join(', ');
+        $(document).on('click', nativeTabSelectors, function() {
             deactivateAiutomaTab();
         });
 

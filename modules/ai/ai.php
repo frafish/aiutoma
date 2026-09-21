@@ -90,16 +90,6 @@ class Ai
         return $selected_dir;
     }
 
-    public static function get_safe_mode_flag_path()
-    {
-        return self::get_storage_dir() . '/.aiutoma_safe';
-    }
-
-    public static function get_cron_flag_path()
-    {
-        return self::get_storage_dir() . '/.aiutoma_cron_running';
-    }
-
     private static function secure_directory($dir)
     {
         if (empty($dir) || !is_dir($dir)) return;
@@ -261,13 +251,6 @@ class Ai
                 return current_user_can('manage_options');
             }
         ]);
-        register_rest_route('aiutoma/v1', '/download-ai-backup', [
-            'methods' => 'GET',
-            'callback' => [$this, 'download_ai_backup'],
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            }
-        ]);
     }
 
     public function chat_permission_check()
@@ -300,29 +283,7 @@ class Ai
         $data = json_decode(file_get_contents($backup_file), true);
         if (!$data) return new \WP_Error('invalid_backup', 'Invalid backup format');
 
-        if ($data['action'] === 'db-query') {
-            global $wpdb;
-            $table = $data['table'];
-            if ($data['type'] === 'UPDATE') {
-                foreach ($data['rows'] as $row) {
-                    $common_pks = ['ID', 'id', 'post_id', 'meta_id', 'umeta_id', 'term_id', 'option_id', 'comment_ID'];
-                    $pk = array_key_first($row);
-                    foreach ($common_pks as $p) {
-                        if (isset($row[$p])) {
-                            $pk = $p;
-                            break;
-                        }
-                    }
-                    if ($pk) {
-                        $wpdb->update($table, $row, [$pk => $row[$pk]]);
-                    }
-                }
-            } elseif ($data['type'] === 'DELETE') {
-                foreach ($data['rows'] as $row) {
-                    $wpdb->insert($table, $row);
-                }
-            }
-        } elseif ($data['action'] === 'update-options') {
+        if ($data['action'] === 'update-options' || $data['action'] === 'global-rollback' || $data['action'] === 'cron-rollback') {
             if (isset($data['options']) && is_array($data['options'])) {
                 foreach ($data['options'] as $opt => $val) {
                     if ($val === false) {
@@ -330,13 +291,6 @@ class Ai
                     } else {
                         update_option($opt, $val);
                     }
-                }
-            }
-        } elseif ($data['action'] === 'execute-php-rollback' || $data['action'] === 'global-rollback' || $data['action'] === 'cron-rollback') {
-            if (!empty($data['options'])) {
-                foreach ($data['options'] as $opt => $val) {
-                    if ($val === false) delete_option($opt);
-                    else update_option($opt, $val);
                 }
             }
             if (!empty($data['posts'])) {
@@ -349,30 +303,12 @@ class Ai
                 }
             }
             if (!empty($data['db_changes'])) {
-                global $wpdb;
-                foreach ($data['db_changes'] as $change) {
-                    $table = $change['table'];
-                    $type = $change['type'];
-                    if ($type === 'UPDATE') {
-                        foreach ($change['rows'] as $row) {
-                            $common_pks = ['ID', 'id', 'post_id', 'meta_id', 'umeta_id', 'term_id', 'option_id', 'comment_ID'];
-                            $pk = array_key_first($row);
-                            foreach ($common_pks as $p) {
-                                if (isset($row[$p])) {
-                                    $pk = $p;
-                                    break;
-                                }
-                            }
-                            if ($pk) {
-                                $wpdb->update($table, $row, [$pk => $row[$pk]]);
-                            }
-                        }
-                    } elseif ($type === 'DELETE') {
-                        foreach ($change['rows'] as $row) {
-                            $wpdb->insert($table, $row);
-                        }
-                    }
-                }
+                apply_filters('aiutoma_handle_custom_rollback', false, $data, $backup_file);
+            }
+        } else {
+            $handled = apply_filters('aiutoma_handle_custom_rollback', false, $data, $backup_file);
+            if (!$handled) {
+                return new \WP_Error('unsupported_action', __('Unsupported rollback action.', 'aiutoma'));
             }
         }
 
@@ -391,16 +327,6 @@ class Ai
             }
         }
         return new \WP_REST_Response(['success' => true, 'message' => 'Temporary backups cleared.'], 200);
-    }
-
-    public function toggle_safe_mode(\WP_REST_Request $request)
-    {
-        $default_response = new \WP_REST_Response([
-            'success' => false,
-            'message' => __('Safe Mode is handled by the Aiutoma Developer Extension companion plugin.', 'aiutoma'),
-        ], 400);
-
-        return apply_filters('aiutoma_toggle_safe_mode_response', $default_response, $request);
     }
 
     public function on_option_updated($option)
@@ -651,82 +577,5 @@ class Ai
         }
 
         return new \WP_REST_Response(['success' => true, 'models' => []], 200);
-    }
-
-    public function download_ai_backup($request)
-    {
-        $backup_id = $request->get_param('id');
-        $type = $request->get_param('type'); // 'file' or 'sql'
-        $index = (int)$request->get_param('index');
-
-        if (!$backup_id || !$type) {
-            return new \WP_Error('invalid_params', 'Missing required parameters.', ['status' => 400]);
-        }
-
-        $upload_dir = wp_upload_dir();
-        $backup_dir = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/backup';
-        $json_file = $backup_dir . '/' . basename($backup_id);
-
-        if (!file_exists($json_file)) {
-            return new \WP_Error('not_found', 'Backup not found.', ['status' => 404]);
-        }
-
-        $data = json_decode(file_get_contents($json_file), true);
-        if (!$data) {
-            return new \WP_Error('invalid_backup', 'Invalid backup file.', ['status' => 500]);
-        }
-
-        if ($type === 'file') {
-            if (!isset($data['files'][$index])) {
-                return new \WP_Error('not_found', 'File backup not found.', ['status' => 404]);
-            }
-            $file_info = $data['files'][$index];
-            if ($file_info['is_new']) {
-                return new \WP_Error('not_found', 'This file was created by AI, no previous version exists.', ['status' => 404]);
-            }
-            $physical = $backup_dir . '/' . basename($file_info['physical_backup']);
-            if (!file_exists($physical)) {
-                return new \WP_Error('not_found', 'Physical backup file not found.', ['status' => 404]);
-            }
-
-            header('Content-Type: application/octet-stream');
-            header('Content-Disposition: attachment; filename="' . basename($file_info['path']) . '"');
-            header('Content-Length: ' . filesize($physical));
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
-            readfile($physical);
-            exit;
-        } elseif ($type === 'sql') {
-            if (!isset($data['db_changes'])) {
-                return new \WP_Error('not_found', 'No DB changes in this backup.', ['status' => 404]);
-            }
-
-            $sql_dump = "-- AI Action Rollback SQL Dump\n";
-            $sql_dump .= "-- Original Backup ID: " . $backup_id . "\n\n";
-
-            foreach ($data['db_changes'] as $change) {
-                if ($change['type'] === 'UPDATE' || $change['type'] === 'DELETE' || $change['type'] === 'INSERT') {
-                    $table = $change['table'];
-                    $sql_dump .= "-- Restore original rows for table: {$table}\n";
-                    if (!empty($change['rows'])) {
-                        foreach ($change['rows'] as $row) {
-                            $cols = array_keys($row);
-                            $vals = array_map(function ($v) {
-                                if ($v === null) return 'NULL';
-                                return "'" . esc_sql($v) . "'";
-                            }, array_values($row));
-                            $sql_dump .= "REPLACE INTO `{$table}` (`" . implode("`, `", $cols) . "`) VALUES (" . implode(", ", $vals) . ");\n";
-                        }
-                    }
-                    $sql_dump .= "\n";
-                }
-            }
-
-            header('Content-Type: text/plain');
-            header('Content-Disposition: attachment; filename="rollback_' . $backup_id . '.sql"');
-            echo $sql_dump;
-            exit;
-        }
-
-        return new \WP_Error('invalid_type', 'Invalid download type.', ['status' => 400]);
     }
 }

@@ -46,7 +46,9 @@ trait Core
                     'total_found' => $search_query->found_posts
                 ];
             },
-            'permission_callback' => '__return_true',
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
@@ -333,214 +335,6 @@ trait Core
                     'blocks' => ['type' => 'string', 'description' => 'Raw Gutenberg block HTML (e.g. <!-- wp:paragraph --><p>Hello</p><!-- /wp:paragraph -->)']
                 ],
                 'required' => ['blocks']
-            ]
-        ]);
-
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/read-file', [
-            'category' => 'aiutoma',
-            'label' => __('Read File', 'aiutoma'),
-            'description' => __('Read a file from the server.', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $path = $input['path'];
-                if (!file_exists($path)) {
-                    return new \WP_Error('file_error', 'File not found: ' . $path);
-                }
-                $content = file_get_contents($path);
-                if ($content === false) {
-                    return new \WP_Error('file_error', 'Failed to read file: ' . $path);
-                }
-                return ['success' => true, 'content' => $content];
-            },
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'path' => ['type' => 'string', 'description' => 'Absolute file path']
-                ],
-                'required' => ['path']
-            ]
-        ]);
-
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/list-directory', [
-            'category' => 'aiutoma',
-            'label' => __('List Directory', 'aiutoma'),
-            'description' => __('List files and folders in a directory.', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $path = $input['path'];
-                if (!is_dir($path)) {
-                    return new \WP_Error('dir_error', 'Directory not found: ' . $path);
-                }
-                $files = scandir($path);
-                if ($files === false) {
-                    return new \WP_Error('dir_error', 'Failed to read directory: ' . $path);
-                }
-                return ['success' => true, 'files' => array_values(array_diff($files, ['.', '..']))];
-            },
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'path' => ['type' => 'string', 'description' => 'Absolute directory path']
-                ],
-                'required' => ['path']
-            ]
-        ]);
-
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-plugins', [
-            'category' => 'aiutoma',
-            'label' => __('Manage Plugins', 'aiutoma'),
-            'description' => __('Manage WordPress plugins safely (list, install, activate, deactivate, delete).', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                if (!function_exists('get_plugins')) {
-                    require_once ABSPATH . 'wp-admin/includes/plugin.php';
-                }
-
-                $action = $input['action'];
-                $slug = isset($input['slug']) ? sanitize_text_field($input['slug']) : '';
-
-                if ($action === 'list') {
-                    $all_plugins = get_plugins();
-                    $active_plugins = get_option('active_plugins', []);
-                    $data = [];
-                    foreach ($all_plugins as $path => $info) {
-                        $data[] = [
-                            'path' => $path,
-                            'name' => $info['Name'],
-                            'version' => $info['Version'],
-                            'status' => in_array($path, $active_plugins) ? 'active' : 'inactive'
-                        ];
-                    }
-                    return ['success' => true, 'plugins' => $data];
-                }
-
-                if (empty($slug)) {
-                    return new \WP_Error('missing_slug', 'Plugin slug/path is required for this action.');
-                }
-
-                $plugin_file = $slug;
-                if (strpos($plugin_file, '.php') === false && $action !== 'install') {
-                    $plugins = get_plugins();
-                    foreach ($plugins as $path => $p) {
-                        if (strpos($path, $slug . '/') === 0 || $path === $slug . '.php') {
-                            $plugin_file = $path;
-                            break;
-                        }
-                    }
-                }
-
-                if ($action === 'activate') {
-                    $result = activate_plugin($plugin_file);
-                    if (is_wp_error($result)) return $result;
-                    return ['success' => true, 'message' => "Plugin $plugin_file activated."];
-                } elseif ($action === 'deactivate') {
-                    deactivate_plugins($plugin_file);
-                    return ['success' => true, 'message' => "Plugin $plugin_file deactivated."];
-                } elseif ($action === 'delete') {
-                    deactivate_plugins($plugin_file);
-                    $result = delete_plugins([$plugin_file]);
-                    if (is_wp_error($result)) return $result;
-                    return ['success' => true, 'message' => "Plugin $plugin_file deleted."];
-                } elseif ($action === 'install' || $action === 'update' || $action === 'rollback') {
-                    include_once ABSPATH . 'wp-admin/includes/plugin-install.php';
-                    include_once ABSPATH . 'wp-admin/includes/file.php';
-                    include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-                    include_once ABSPATH . 'wp-admin/includes/class-automatic-upgrader-skin.php';
-
-                    if ($action === 'update' && empty($input['version'])) {
-                        $upgrader = new \Plugin_Upgrader(new \Automatic_Upgrader_Skin());
-                        $result = $upgrader->upgrade($plugin_file);
-                        if (is_wp_error($result) || $result === false) {
-                            return new \WP_Error('update_failed', 'Failed to update plugin.');
-                        }
-                        return ['success' => true, 'message' => "Plugin $plugin_file updated successfully."];
-                    }
-
-                    $api = plugins_api('plugin_information', ['slug' => $slug]);
-                    if (is_wp_error($api)) return $api;
-
-                    $download_link = $api->download_link;
-                    $version = $input['version'] ?? '';
-
-                    if ($action === 'rollback' || (!empty($version) && $action === 'update')) {
-                        if (empty($version)) return new \WP_Error('missing_version', 'Version is required for rollback.');
-                        if (!isset($api->versions) || !isset($api->versions[$version])) {
-                            return new \WP_Error('invalid_version', "Version $version not found in WordPress repository for $slug.");
-                        }
-                        $download_link = $api->versions[$version];
-                    }
-
-                    $upgrader = new \Plugin_Upgrader(new \Automatic_Upgrader_Skin());
-                    $install_args = [];
-                    if ($action === 'rollback' || $action === 'update') {
-                        $install_args['clear_destination'] = true;
-                    }
-
-                    $result = $upgrader->install($download_link, $install_args);
-
-                    if (is_wp_error($result) || $result === false) {
-                        return new \WP_Error('action_failed', "Failed to $action plugin.");
-                    }
-                    return ['success' => true, 'message' => "Plugin $slug successfully processed ($action" . (!empty($version) ? " to version $version" : "") . ")."];
-                }
-
-                return new \WP_Error('invalid_action', 'Unsupported action.');
-            },
-            'permission_callback' => function () {
-                return current_user_can('activate_plugins');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'action' => ['type' => 'string', 'enum' => ['list', 'install', 'activate', 'deactivate', 'delete', 'update', 'rollback'], 'description' => 'Action to perform'],
-                    'slug' => ['type' => 'string', 'description' => 'Plugin directory slug (e.g., "woocommerce") or full path (e.g., "woocommerce/woocommerce.php"). Not needed for list action.'],
-                    'version' => ['type' => 'string', 'description' => 'Specific version to rollback/update to.']
-                ],
-                'required' => ['action']
-            ]
-        ]);
-
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-themes', [
-            'category' => 'aiutoma',
-            'label' => __('Manage Themes', 'aiutoma'),
-            'description' => __('Manage WordPress themes safely (list, activate).', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $action = $input['action'];
-                $slug = isset($input['slug']) ? sanitize_text_field($input['slug']) : '';
-
-                if ($action === 'list') {
-                    $themes = wp_get_themes();
-                    $active = wp_get_theme()->get_stylesheet();
-                    $data = [];
-                    foreach ($themes as $stylesheet => $theme) {
-                        $data[] = [
-                            'slug' => $stylesheet,
-                            'name' => $theme->get('Name'),
-                            'version' => $theme->get('Version'),
-                            'status' => ($stylesheet === $active) ? 'active' : 'inactive'
-                        ];
-                    }
-                    return ['success' => true, 'themes' => $data];
-                } elseif ($action === 'activate') {
-                    if (empty($slug)) return new \WP_Error('missing_slug', 'Theme slug is required.');
-                    switch_theme($slug);
-                    return ['success' => true, 'message' => "Theme $slug activated."];
-                }
-                return new \WP_Error('invalid_action', 'Unsupported action.');
-            },
-            'permission_callback' => function () {
-                return current_user_can('switch_themes');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'action' => ['type' => 'string', 'enum' => ['list', 'activate'], 'description' => 'Action to perform'],
-                    'slug' => ['type' => 'string', 'description' => 'Theme slug. Not needed for list action.']
-                ],
-                'required' => ['action']
             ]
         ]);
 
@@ -927,7 +721,30 @@ trait Core
 
                     $ability_input = isset($input['ability_input']) && is_array($input['ability_input']) ? $input['ability_input'] : [];
 
-                    if (method_exists($ability, 'check_permissions') && !$ability->check_permissions($ability_input)) {
+                    // Strictly enforce target ability permission callback (fail-closed / deny by default)
+                    $permission_verified = false;
+                    if (method_exists($ability, 'check_permissions')) {
+                        $has_permission = $ability->check_permissions($ability_input);
+                        if (is_wp_error($has_permission)) {
+                            return $has_permission;
+                        }
+                        if (true === $has_permission) {
+                            $permission_verified = true;
+                        }
+                    } elseif (method_exists($ability, 'get_permission_callback')) {
+                        $perm_cb = $ability->get_permission_callback();
+                        if (is_callable($perm_cb)) {
+                            $has_permission = call_user_func($perm_cb, $ability_input);
+                            if (is_wp_error($has_permission)) {
+                                return $has_permission;
+                            }
+                            if (true === $has_permission) {
+                                $permission_verified = true;
+                            }
+                        }
+                    }
+
+                    if (!$permission_verified) {
                         /* translators: %s: ability name */
                         return new \WP_Error('forbidden', sprintf(__('Permission denied for ability "%s".', 'aiutoma'), $ability_name));
                     }
@@ -1027,8 +844,11 @@ trait Core
 
                 return new \WP_Error('invalid_action', __('Invalid action. Supported actions are "list", "get", and "execute".', 'aiutoma'));
             },
-            'permission_callback' => '__return_true',
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
             'meta' => [
+                'mcp' => ['public' => false],
                 'annotations' => [
                     'readonly' => false,
                     'destructive' => false,
@@ -1106,7 +926,9 @@ trait Core
 
                 return new \WP_Error('invalid_action', __('Invalid action. Supported actions are "list" and "read".', 'aiutoma'));
             },
-            'permission_callback' => '__return_true',
+            'permission_callback' => function () {
+                return current_user_can('edit_posts');
+            },
             'meta' => [
                 'annotations' => [
                     'readonly' => true,

@@ -3,7 +3,7 @@
 /**
  * Plugin Name: AIutoma – The AIO Autonomous AI Assistant
  * Description: Autonomous AI assistant and agentic automation suite.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: frapesce
  * Text Domain: aiutoma
  * Requires at least: 7.0
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 define('AIUTOMA_FILE', __FILE__);
 define('AIUTOMA_PATH', plugin_dir_path(__FILE__));
 define('AIUTOMA_URL', plugin_dir_url(__FILE__));
-define('AIUTOMA_VERSION', '1.0.1');
+define('AIUTOMA_VERSION', '1.0.2');
 
 add_action('plugins_loaded', function () {
 

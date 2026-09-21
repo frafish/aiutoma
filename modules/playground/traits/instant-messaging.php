@@ -155,7 +155,6 @@ trait InstantMessaging {
         $saved_im_acting_user = (int) get_option('aiutoma_im_acting_user', 0);
         $current_user_id = get_current_user_id();
         $selected_im_user_id = (int) apply_filters('aiutoma_im_selected_user_id', $saved_im_acting_user ?: $current_user_id);
-        $has_dev_extension = (bool) apply_filters('aiutoma_im_dev_extension_active', false);
 
         $selected_user = get_userdata($selected_im_user_id);
         $current_user = wp_get_current_user();

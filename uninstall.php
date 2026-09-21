@@ -24,7 +24,6 @@ $options = [
     'aiutoma_mcp_token',
     'aiutoma_mcp_acting_user',
     'aiutoma_mcp_webhook_token',
-    'aiutoma_safe_mode_allowlist',
     'aiutoma_tg_bot_token',
     'aiutoma_tg_allowed_chat_id',
     'aiutoma_wa_phone_number_id',

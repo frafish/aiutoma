@@ -15,11 +15,6 @@ trait Init {
             'callback' => [$this, 'handle_chat_request'],
             'permission_callback' => [\Aiutoma\Modules\Ai\Ai::instance(), 'chat_permission_check']
         ]);
-        register_rest_route('aiutoma/v1', '/toggle-safe-mode', [
-            'methods' => 'POST',
-            'callback' => [$this, 'toggle_safe_mode'],
-            'permission_callback' => function () { return current_user_can('manage_options'); }
-        ]);
         register_rest_route('aiutoma/v1', '/convert-media', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_convert_media'],

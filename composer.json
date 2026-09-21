@@ -9,6 +9,9 @@
         "cleanup-vendor": [
             "@php -r \"foreach(['vendor/shuchkin/simplexls/examples', 'vendor/shuchkin/simplexlsx/examples'] as \\$d) { if (is_dir(\\$d)) { \\$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(\\$d, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST); foreach (\\$it as \\$f) { \\$f->isDir() ? @rmdir(\\$f->getRealPath()) : @unlink(\\$f->getRealPath()); } @rmdir(\\$d); } }\""
         ],
+        "build-zip": [
+            "rm -f ../aiutoma.zip && cd .. && zip -r aiutoma.zip aiutoma -x '*/.*' -x 'aiutoma/.*'"
+        ],
         "post-install-cmd": [
             "@cleanup-vendor"
         ],

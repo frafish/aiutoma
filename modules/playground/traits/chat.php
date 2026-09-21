@@ -259,16 +259,14 @@ trait Chat {
             }
             $env_info .= "\n\n" . $tools_list;
 
-            $dev_tool_instruction = defined('AIUTOMA_DEV_VERSION')
-                ? "Developer tools (execute-php, modify-file, run-wp-cli) are active via the Developer Extension; use them when needed for custom code execution or file edits after user confirmation. "
-                : "If a task cannot be performed with native tools and strictly requires executing arbitrary PHP or modifying files, inform the user that the Aiutoma Developer Extension is required. ";
+            $tool_instructions = apply_filters('aiutoma_chat_tool_instructions', "If a task cannot be performed with native tools and strictly requires executing arbitrary PHP or modifying files, inform the user that direct PHP code execution and filesystem modifications are disabled for security reasons. ");
 
             $system_instruction = "You are an advanced, agentic AI Assistant specialized in WordPress. "
                 . "To optimize token usage, you MUST provide extremely concise and direct answers. Avoid unnecessary pleasantries or long explanations. "
                 . "You are empowered to act autonomously directly within the WordPress instance using your tools when needed. "
-                . "Your capabilities include: 1) Manage and maintain the site (update WP core, install/remove plugins/themes, manage user roles). 2) Create and organize content (add/edit/delete posts/pages, categories, tags, images, comments). 3) Run WooCommerce stores (manage products, orders, customers). 4) Improve performance and security (identify speed issues, audit vulnerabilities, troubleshoot conflicts). 5) Customize and enhance the site (design guidance, snippets, SEO). 6) Adjust technical settings (permalinks, options, multilanguage). "
+                . "Your capabilities include: 1) Create and organize content (add/edit/delete posts/pages, categories, tags, images, comments). 2) Run WooCommerce stores (manage products, orders, customers). 3) Improve performance and SEO (identify speed issues, clear cache, optimize metadata). 4) Manage site options and translations (permalinks, options, multilanguage). "
                 . "You have full access to structured WordPress Core functions and plugin APIs (such as WooCommerce, Posts, Options, Media, Users, Full Site Editing). All WordPress system abilities (e.g. `aiutoma/page-snapshot`, `gutenberg/manage-templates`, `gutenberg/wp-patterns`, `aiutoma/manage-posts`, `aiutoma/manage-options`, `aiutoma/manage-system`, `aiutoma/skills`, WooCommerce, WPML) can be discovered, inspected, and executed dynamically on-demand via the `aiutoma/abilities` ability. Call `aiutoma/abilities` with action 'list' (pass 'search' or 'category' to find specific tools), 'get' to inspect parameter schemas, or 'execute' with 'ability_name' and 'ability_input' to run any ability safely. When querying or counting items (like products or posts), always check the returned `total_items` or `total` count in the response rather than paginating through all records. For WooCommerce, filter products with `woocommerce/products-query` (supports `product_type_alias`: 'physical', 'virtual', 'digital', 'affiliate', 'grouped', or 'variable') and manage or list variations with `woocommerce/manage-variations` (pass `product_id` and optional `action`: 'list'). "
-                . $dev_tool_instruction
+                . $tool_instructions
                 . "You are an expert in the WordPress ecosystem, its hooks, filters, and best practices. Specialized architecture guidelines and best practices (e.g. WooCommerce, Interactivity API, Block Themes, Performance Tuning, Blueprint, Playground, Hooks & Lifecycle) are available on-demand via the `aiutoma/skills` ability. Call `aiutoma/skills` with action 'list' to see available topics or 'read' with a skill_id to retrieve exact guidelines when needed."
                 . "\n\nCRITICAL RULE FOR USING ABILITIES/TOOLS:\n"
                 . "You MUST ONLY call ONE tool per response! DO NOT execute multiple tools in parallel in a single response. "
@@ -660,23 +658,25 @@ trait Chat {
                                 $name = $fc->getName();
                                 $original_name = $name;
                                 
-                                $missing_namespace_map = [
-                                    'wpab__execute-php' => 'wpab__ai__execute-php',
-                                    'wpab__execute_php' => 'wpab__ai__execute_php',
-                                    'wpab__db-query' => 'wpab__ai__db-query',
-                                    'wpab__db_query' => 'wpab__ai__db_query',
-                                    'wpab__modify-file' => 'wpab__ai__modify-file',
-                                    'wpab__modify_file' => 'wpab__ai__modify_file',
-                                    'wpab__read-file' => 'wpab__ai__read-file',
-                                    'wpab__read_file' => 'wpab__ai__read_file',
-                                    'wpab__list-directory' => 'wpab__ai__list-directory',
-                                    'wpab__list_directory' => 'wpab__ai__list_directory',
+                                $alias_map = apply_filters('aiutoma_chat_tool_alias_map', [
                                     'wpab__generate-image' => 'wpab__ai__generate-image',
                                     'wpab__generate_image' => 'wpab__ai__generate_image'
-                                ];
+                                ]);
                                 
-                                if (isset($missing_namespace_map[$name])) {
-                                    $name = $missing_namespace_map[$name];
+                                if (isset($alias_map[$name])) {
+                                    $name = $alias_map[$name];
+                                } elseif (strpos($name, 'wpab__') === 0 && substr_count($name, '__') === 1) {
+                                    $suffix_norm = str_replace('_', '-', substr($name, 6));
+                                    if (class_exists('\Aiutoma\Modules\Ai\Abilities')) {
+                                        foreach (\Aiutoma\Modules\Ai\Abilities::get_all() as $ab_key => $ab_obj) {
+                                            $ab_key_norm = str_replace('_', '-', $ab_key);
+                                            if (str_ends_with($ab_key_norm, '/' . $suffix_norm)) {
+                                                $cat = explode('/', $ab_key, 2)[0];
+                                                $name = 'wpab__' . $cat . '__' . substr($ab_key, strlen($cat) + 1);
+                                                break;
+                                            }
+                                        }
+                                    }
                                 }
                                 
                                 if ($name !== $original_name) {

@@ -7,7 +7,6 @@ class Playground {
     use Traits\History;
     use Traits\Context;
     use Traits\Chat;
-    use Traits\SafeMode;
     use Traits\Automation;
     use Traits\InstantMessaging;
 

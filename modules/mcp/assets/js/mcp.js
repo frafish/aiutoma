@@ -103,10 +103,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var authTitle = document.getElementById('aiutoma_prompt_auth_title');
     var authLine = document.getElementById('aiutoma_prompt_auth_line');
     var apiKeyLine = document.getElementById('aiutoma_prompt_api_key_line');
-    var safeModeHint = document.getElementById('aiutoma_prompt_safe_mode_hint');
     var customizer = document.querySelector('.aiutoma-prompt-customizer');
-    var isDevActive = customizer && customizer.getAttribute('data-dev-active') === '1';
     var mcpToken = customizer ? customizer.getAttribute('data-token') : '';
+    var mcpJsonContent = document.getElementById('aiutoma_mcp_json_content');
+    var mcpDownloadBtn = document.getElementById('aiutoma_download_mcp_json_btn');
+    var mcpBaseDownloadUrl = mcpDownloadBtn ? mcpDownloadBtn.getAttribute('href') : '';
 
     if (userSelect && passInput && authBasic && authCurl) {
         function escapeHtml(str) {
@@ -145,14 +146,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearBtn.style.display = password ? 'inline-block' : 'none';
             }
 
-            if (safeModeHint) {
-                if (isDevActive) {
-                    safeModeHint.innerHTML = 'If the REST API returns a 500 error, append `?aiutoma_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.<br><br>';
-                } else {
-                    safeModeHint.innerHTML = '';
-                }
-            }
-
             if (password) {
                 var credentials = username + ':' + password;
                 var encoded = safeBtoa(credentials);
@@ -180,36 +173,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 authCurl.style.padding = '2px 5px';
                 authCurl.style.borderRadius = '3px';
 
+                if (mcpJsonContent) {
+                    var serverKey = mcpJsonContent.getAttribute('data-server-key') || 'aiutoma';
+                    var restUrl = mcpJsonContent.getAttribute('data-rest-url') || '';
+                    var config = {
+                        "servers": {}
+                    };
+                    config.servers[serverKey] = {
+                        "type": "http",
+                        "url": restUrl,
+                        "headers": {
+                            "Authorization": "Basic " + encoded,
+                            "X-MCP-API-Key": mcpToken
+                        }
+                    };
+                    mcpJsonContent.textContent = JSON.stringify(config, null, 4);
+                }
+                if (mcpDownloadBtn && mcpBaseDownloadUrl) {
+                    var cleanUrl = mcpBaseDownloadUrl.replace(/&auth=[^&]*/, '');
+                    var sep = cleanUrl.indexOf('?') !== -1 ? '&' : '?';
+                    mcpDownloadBtn.href = cleanUrl + sep + 'auth=' + encodeURIComponent(encoded);
+                }
+
                 if (statusMsg) {
-                    statusMsg.innerHTML = '<span class="dashicons dashicons-yes-alt" style="color: #46b450; font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px;"></span> <strong style="color: #1e7e34;">Ready!</strong> Prompt updated with credentials for <code>' + escapeHtml(username) + '</code>. Click "Copy" below to paste into Antigravity or Cursor.';
+                    statusMsg.innerHTML = '<span class="dashicons dashicons-yes-alt" style="color: #46b450;"></span> <strong style="color: #1e7e34;">Ready!</strong> Credentials updated for <code>' + escapeHtml(username) + '</code> across Gemini prompt and mcp.json.';
                 }
             } else {
-                if (isDevActive) {
-                    if (authTitle) {
-                        authTitle.innerHTML = '<strong>Authentication Header:</strong> ';
-                    }
-                    if (authLine) {
-                        authLine.style.display = 'none';
-                    }
-                    if (apiKeyLine) {
-                        apiKeyLine.innerHTML = '<code>X-MCP-API-Key: ' + escapeHtml(mcpToken) + '</code>';
-                    }
-                    if (statusMsg) {
-                        statusMsg.innerHTML = '<span class="dashicons dashicons-admin-generic" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px; color: #2271b1;"></span> <strong>Developer Extension Active:</strong> Requests with API Key run as superuser (<code>' + escapeHtml(username) + '</code>), bypassing Application Passwords. Enter an Application Password above only if you wish to use Basic Auth.';
-                    }
-                } else {
-                    if (authTitle) {
-                        authTitle.innerHTML = '<strong>Authentication Options:</strong><br>';
-                    }
-                    if (authLine) {
-                        authLine.style.display = 'inline';
-                    }
-                    if (apiKeyLine) {
-                        apiKeyLine.innerHTML = '- <em>API Key:</em> <code>X-MCP-API-Key: ' + escapeHtml(mcpToken) + '</code>';
-                    }
-                    if (statusMsg) {
-                        statusMsg.innerHTML = '<span class="dashicons dashicons-info" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px;"></span> Type or paste an Application Password to generate ready-to-use Basic Auth headers in the prompt below.';
-                    }
+                if (authTitle) {
+                    authTitle.innerHTML = '<strong>Authentication Options:</strong><br>';
+                }
+                if (authLine) {
+                    authLine.style.display = 'inline';
+                }
+                if (apiKeyLine) {
+                    apiKeyLine.innerHTML = '- <em>API Key:</em> <code>X-MCP-API-Key: ' + escapeHtml(mcpToken) + '</code>';
+                }
+                if (statusMsg) {
+                    statusMsg.innerHTML = '<span class="dashicons dashicons-info"></span> Type or paste an Application Password to generate ready-to-use Basic Auth headers in the prompt and mcp.json below.';
                 }
 
                 authBasic.textContent = 'Authorization: Basic <base64(' + username + ':app_password)>';
@@ -224,6 +224,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 authCurl.style.color = '';
                 authCurl.style.padding = '';
                 authCurl.style.borderRadius = '';
+
+                if (mcpJsonContent) {
+                    var sKey = mcpJsonContent.getAttribute('data-server-key') || 'aiutoma';
+                    var rUrl = mcpJsonContent.getAttribute('data-rest-url') || '';
+                    var defConfig = {
+                        "servers": {}
+                    };
+                    defConfig.servers[sKey] = {
+                        "type": "http",
+                        "url": rUrl,
+                        "headers": {
+                            "Authorization": "Basic <base64(" + username + ":application_password)>",
+                            "X-MCP-API-Key": mcpToken
+                        }
+                    };
+                    mcpJsonContent.textContent = JSON.stringify(defConfig, null, 4);
+                }
+                if (mcpDownloadBtn && mcpBaseDownloadUrl) {
+                    mcpDownloadBtn.href = mcpBaseDownloadUrl.replace(/&auth=[^&]*/, '');
+                }
             }
         }
 

@@ -26,6 +26,7 @@ class Mcp
         add_action('rest_api_init', [$this, 'init_mcp_routes']);
         add_filter('determine_current_user', [$this, 'determine_current_user'], 20);
         add_action('admin_post_aiutoma_download_mcpb', [$this, 'download_mcpb']);
+        add_action('admin_post_aiutoma_download_mcp_json', [$this, 'download_mcp_json']);
         add_action('admin_post_aiutoma_download_log', [$this, 'download_log_file']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_mcp_scripts']);
 
@@ -164,7 +165,7 @@ class Mcp
 
     public function mcp_permission_check(\WP_REST_Request $request)
     {
-        if (current_user_can('manage_options')) {
+        if (apply_filters('aiutoma_mcp_permission_check', current_user_can('manage_options'), $request)) {
             return true;
         }
 
@@ -195,11 +196,15 @@ class Mcp
 
         $tools = [];
         foreach ($aiutoma_abilities as $ability) {
+            $name = $ability->get_name();
+            if (!self::is_ability_allowed_for_mcp($name)) {
+                continue;
+            }
             $meta = $ability->get_meta();
             if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
                 continue;
             }
-            $tools[] = $ability->get_name();
+            $tools[] = $name;
         }
 
         if (empty($tools)) {
@@ -245,6 +250,47 @@ class Mcp
     }
 
     /**
+     * Check if an ability is safe and permitted for remote MCP / OpenAPI execution.
+     * In accordance with WordPress.org guidelines, remote administrative actions (e.g. managing plugins,
+     * themes, users, modifying site code, or sensitive options) are strictly prohibited.
+     * Remote execution is strictly limited to non-administrative work (content, media, comments,
+     * WooCommerce catalog/orders, WPML translations, search, and cache flushing).
+     *
+     * @param string $ability_name Ability identifier.
+     * @return bool
+     */
+    public static function is_ability_allowed_for_mcp($ability_name)
+    {
+        if (empty($ability_name) || !is_string($ability_name)) {
+            return false;
+        }
+
+        // Explicitly block any administrative, user, filesystem, or core modification abilities
+        $blocked_patterns = [
+            'manage-plugins',
+            'manage-themes',
+            'manage-users',
+            'read-file',
+            'list-directory',
+            'manage-options',
+            'run-wp-cli',
+            'execute_php',
+            'execute-php',
+            'db-query',
+            'modify-file',
+            'scaffold-theme',
+        ];
+
+        foreach ($blocked_patterns as $blocked) {
+            if (strpos($ability_name, $blocked) !== false) {
+                return (bool) apply_filters('aiutoma_mcp_allow_blocked_ability', false, $ability_name);
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Permission callback for the official MCP Adapter transport.
      *
      * @param mixed $request REST request object.
@@ -252,7 +298,7 @@ class Mcp
      */
     public function mcp_adapter_permission_check($request = null)
     {
-        return current_user_can('manage_options');
+        return (bool) apply_filters('aiutoma_mcp_permission_check', current_user_can('manage_options'), $request);
     }
 
     /**
@@ -445,11 +491,15 @@ class Mcp
 
                     // Expose direct tools matching MCP naming convention with annotations
                     foreach ($aiutoma_abilities as $ability) {
+                        $ab_name = $ability->get_name();
+                        if (!self::is_ability_allowed_for_mcp($ab_name)) {
+                            continue;
+                        }
                         $meta = $ability->get_meta();
                         if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
                             continue;
                         }
-                        $sanitized_name = str_replace('/', '-', $ability->get_name());
+                        $sanitized_name = str_replace('/', '-', $ab_name);
                         $tools[] = [
                             'name' => $sanitized_name,
                             'title' => $ability->get_label() ?: $sanitized_name,
@@ -497,9 +547,6 @@ class Mcp
                                     return [$ab, $ab_name];
                                 }
                             }
-                            if (($clean_input_hyphen === 'wp-cli' || $clean_input_under === 'wp_cli') && $ab_name === 'aiutoma/run-wp-cli') {
-                                return [$ab, $ab_name];
-                            }
                         }
                         $candidate = str_replace('_', '/', $tool_input_name);
                         if (function_exists('wp_has_ability') && wp_has_ability($candidate)) {
@@ -511,13 +558,17 @@ class Mcp
                     if ($name === 'aiutoma_discover_abilities') {
                         $list = [];
                         foreach ($aiutoma_abilities as $ability) {
+                            $ab_name = $ability->get_name();
+                            if (!self::is_ability_allowed_for_mcp($ab_name)) {
+                                continue;
+                            }
                             $meta = $ability->get_meta();
                             if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
                                 continue;
                             }
                             $list[] = [
-                                'name' => $ability->get_name(),
-                                'label' => $ability->get_label() ?: $ability->get_name(),
+                                'name' => $ab_name,
+                                'label' => $ability->get_label() ?: $ab_name,
                                 'description' => $ability->get_description() ?: '',
                                 'annotations' => self::format_mcp_annotations($ability)
                             ];
@@ -537,6 +588,9 @@ class Mcp
                         list($ability, $ability_name) = $resolve_ability($input_ability_name);
                         
                         if ($ability) {
+                            if (!self::is_ability_allowed_for_mcp($ability_name)) {
+                                throw new \Exception("Ability not permitted in this context: {$ability_name}");
+                            }
                             $meta = $ability->get_meta();
                             if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
                                 throw new \Exception("Ability not permitted in this context: {$ability_name}");
@@ -568,6 +622,9 @@ class Mcp
                         $ability_params = isset($args['parameters']) ? $args['parameters'] : [];
                         
                         if ($ability) {
+                            if (!self::is_ability_allowed_for_mcp($ability_name)) {
+                                throw new \Exception("Ability not permitted in this context: {$ability_name}");
+                            }
                             $meta = $ability->get_meta();
                             if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
                                 throw new \Exception("Ability not permitted in this context: {$ability_name}");
@@ -598,6 +655,9 @@ class Mcp
                         list($ability, $real_name) = $resolve_ability($name);
 
                         if ($ability) {
+                            if (!self::is_ability_allowed_for_mcp($real_name)) {
+                                throw new \Exception("Tool not permitted in this context: {$real_name}");
+                            }
                             $meta = $ability->get_meta();
                             if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
                                 throw new \Exception("Ability not permitted in this context: {$real_name}");
@@ -708,7 +768,15 @@ class Mcp
         ];
 
         foreach ($aiutoma_abilities as $ability) {
-            $path_name = str_replace('/', '_', $ability->get_name());
+            $name = $ability->get_name();
+            if (!self::is_ability_allowed_for_mcp($name)) {
+                continue;
+            }
+            $meta = $ability->get_meta();
+            if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
+                continue;
+            }
+            $path_name = str_replace('/', '_', $name);
             $schema['paths']['/mcp/tool/' . $path_name] = [
                 'post' => [
                     'operationId' => $path_name,
@@ -741,9 +809,18 @@ class Mcp
         $name = str_replace('_', '/', $tool_name);
         $args = $request->get_json_params() ?: json_decode($request->get_body(), true);
 
+        if (!self::is_ability_allowed_for_mcp($name)) {
+            return new \WP_Error('forbidden', __('Remote execution of this ability is not allowed.', 'aiutoma'), ['status' => 403]);
+        }
+
         $ability = function_exists('wp_get_ability') ? wp_get_ability($name) : null;
         if (!$ability) {
             return new \WP_Error('tool_not_found', 'Tool not found', ['status' => 404]);
+        }
+
+        $meta = method_exists($ability, 'get_meta') ? $ability->get_meta() : [];
+        if (isset($meta['mcp']['public']) && $meta['mcp']['public'] === false) {
+            return new \WP_Error('forbidden', __('Ability not permitted in this context.', 'aiutoma'), ['status' => 403]);
         }
 
         $agent_name = $request->get_header('authorization') ? 'OAuth Client (REST)' : 'Static Client (REST)';
@@ -826,6 +903,53 @@ class Mcp
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
         readfile($tmp);
         wp_delete_file($tmp);
+        exit;
+    }
+
+    public function download_mcp_json()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You are not allowed to download this file.', 'aiutoma'));
+        }
+        check_admin_referer('aiutoma_download_mcp_json');
+
+        $token = get_option('aiutoma_mcp_token', '');
+        if (empty($token)) {
+            $token = wp_generate_password(24, false);
+            update_option('aiutoma_mcp_token', $token);
+        }
+
+        $site_name = trim(get_bloginfo('name'));
+        $server_key = sanitize_title($site_name ?: 'aiutoma');
+        $rest_url = rest_url('aiutoma/v1/mcp');
+
+        $headers = [];
+        if (apply_filters('aiutoma_mcp_include_basic_auth_header', true) && !empty($_GET['auth'])) {
+            $auth_val = sanitize_text_field(wp_unslash($_GET['auth']));
+            if (preg_match('/^[a-zA-Z0-9+\/]+=*$/', $auth_val)) {
+                $headers['Authorization'] = 'Basic ' . $auth_val;
+            }
+        }
+        $headers['X-MCP-API-Key'] = $token;
+
+        $config = [
+            'servers' => [
+                $server_key => [
+                    'type' => 'http',
+                    'url' => $rest_url,
+                    'headers' => $headers,
+                ],
+            ],
+        ];
+
+        $json_content = wp_json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        nocache_headers();
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="mcp.json"');
+        header('Content-Length: ' . strlen($json_content));
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo $json_content;
         exit;
     }
 
@@ -989,7 +1113,6 @@ class Mcp
         $current_user_login = ($current_user && !empty($current_user->user_login)) ? $current_user->user_login : 'user';
         $selected_user = get_userdata($selected_prompt_user_id);
         $selected_user_login = ($selected_user && !empty($selected_user->user_login)) ? $selected_user->user_login : $current_user_login;
-        $has_dev_extension = (bool) apply_filters('aiutoma_mcp_dev_extension_active', false);
         $has_application_password = false;
         if (class_exists('\WP_Application_Passwords') && $current_user_id) {
             $user_passwords = \WP_Application_Passwords::get_user_application_passwords($current_user_id);
@@ -1019,20 +1142,8 @@ class Mcp
             <h1><?php esc_html_e('MCP & GPT Integrations', 'aiutoma'); ?></h1>
             <p><?php esc_html_e('Use this server to expose your WordPress site tools to Claude via MCP, or GPT via Custom Actions.', 'aiutoma'); ?></p>
 
-            <?php if ($has_dev_extension) : ?>
-                <div class="notice notice-info is-dismissible" style="margin: 15px 0 10px;">
-                    <p style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                        <span>
-                            <span class="dashicons dashicons-admin-generic" style="vertical-align: middle; margin-top: -2px; color: #2271b1;"></span>
-                            <strong><?php esc_html_e('Developer Extension Active:', 'aiutoma'); ?></strong>
-                            <?php
-                            /* translators: %s: user login */
-                            printf(esc_html__('MCP REST requests using your API Key automatically run as site superuser (%s), bypassing the need for Application Passwords.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>');
-                            ?>
-                        </span>
-                    </p>
-                </div>
-            <?php elseif (!$has_application_password) : ?>
+            <?php do_action('aiutoma_mcp_notices'); ?>
+            <?php if (!$has_application_password && apply_filters('aiutoma_mcp_show_app_password_notice', true)) : ?>
                 <div class="notice notice-warning is-dismissible" style="margin: 15px 0 10px;">
                     <p style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
                         <span>
@@ -1040,11 +1151,66 @@ class Mcp
                             <?php esc_html_e('You do not have a WordPress Application Password set on your account. Creating one allows secure authenticated access to WordPress APIs.', 'aiutoma'); ?>
                         </span>
                         <a href="<?php echo esc_url($app_pass_url); ?>" class="button button-primary" target="_blank">
-                            <span class="dashicons dashicons-admin-users" style="vertical-align: middle; margin-top: -2px;"></span>
+                            <span class="dashicons dashicons-admin-users"></span>
                             <?php esc_html_e('Set Application Password in Profile', 'aiutoma'); ?> &rarr;
                         </a>
                     </p>
                 </div>
+            <?php endif; ?>
+
+            <?php if (apply_filters('aiutoma_mcp_show_credential_customizer', true)) : ?>
+            <!-- Prompt & Client Credential Customizer -->
+            <div class="aiutoma-prompt-customizer" data-token="<?php echo esc_attr($token); ?>">
+                <h4>
+                    <span class="dashicons dashicons-admin-users" style="vertical-align: middle; margin-right: 4px; color: #2271b1;"></span>
+                    <?php esc_html_e('Customize Prompt & Client Credentials', 'aiutoma'); ?>
+                </h4>
+                <p class="description" style="margin: 0 0 10px 0;">
+                    <?php esc_html_e('Select a user and type or paste their Application Password. The system prompt and mcp.json configuration below will update in real time with the credentials, ready to copy or download.', 'aiutoma'); ?>
+                </p>
+                <div class="aiutoma-customizer-grid">
+                    <div class="aiutoma-customizer-col-user">
+                        <label for="aiutoma_prompt_user_select" style="display: block; font-weight: 600; margin-bottom: 4px;">
+                            <?php esc_html_e('Select User:', 'aiutoma'); ?>
+                        </label>
+                        <select id="aiutoma_prompt_user_select" style="width: 100%; max-width: 100%;">
+                            <?php
+                            foreach ($prompt_users as $p_user) {
+                                $u_edit_url = get_edit_user_link($p_user->ID) ?: admin_url('user-edit.php?user_id=' . $p_user->ID);
+                                $u_app_url = $u_edit_url . '#application-passwords-section';
+                                ?>
+                                <option value="<?php echo esc_attr($p_user->user_login); ?>" data-user-id="<?php echo esc_attr($p_user->ID); ?>" data-app-url="<?php echo esc_url($u_app_url); ?>" <?php selected($p_user->ID, $selected_prompt_user_id); ?>>
+                                    <?php echo esc_html($p_user->display_name . ' (' . $p_user->user_login . ')'); ?>
+                                </option>
+                                <?php
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div class="aiutoma-customizer-col-pass">
+                        <label for="aiutoma_prompt_app_password" style="display: block; font-weight: 600; margin-bottom: 4px;">
+                            <?php esc_html_e('Application Password:', 'aiutoma'); ?>
+                        </label>
+                        <div class="aiutoma-pass-input-wrap">
+                            <input type="password" id="aiutoma_prompt_app_password" placeholder="<?php esc_attr_e('Enter Application Password (e.g. abcd efgh ijkl mnop)', 'aiutoma'); ?>" class="regular-text" style="width: 100%; font-family: monospace;" autocomplete="off" spellcheck="false">
+                            <button type="button" class="button" id="aiutoma_prompt_toggle_pass" title="<?php esc_attr_e('Show / Hide Password', 'aiutoma'); ?>">
+                                <span class="dashicons dashicons-visibility"></span>
+                            </button>
+                            <button type="button" class="button" id="aiutoma_prompt_clear_pass" title="<?php esc_attr_e('Clear Password', 'aiutoma'); ?>" style="display: none;">&times;</button>
+                        </div>
+                    </div>
+                    <div class="aiutoma-customizer-col-btn">
+                        <a id="aiutoma_prompt_user_app_url" href="<?php echo esc_url($app_pass_url); ?>" class="button button-secondary" target="_blank">
+                            <span class="dashicons dashicons-external"></span>
+                            <?php esc_html_e('Manage Passwords for Selected User', 'aiutoma'); ?> &rarr;
+                        </a>
+                    </div>
+                </div>
+                <div id="aiutoma_prompt_status_msg">
+                    <span class="dashicons dashicons-info"></span>
+                    <span><?php esc_html_e('Type or paste an Application Password to generate ready-to-use Basic Auth headers in the prompt and mcp.json below.', 'aiutoma'); ?></span>
+                </div>
+            </div>
             <?php endif; ?>
 
             <div style="margin-top: 20px;">
@@ -1054,6 +1220,12 @@ class Mcp
                             <path d="M11.9961 24C12.3023 17.5117 17.5039 12.3102 24 12C17.5039 11.6898 12.3023 6.48834 11.9961 0C11.6898 6.48834 6.48834 11.6898 0 12C6.48834 12.3102 11.6898 17.5117 11.9961 24Z" fill="#1A73E8" />
                         </svg>
                         <?php esc_html_e('Gemini', 'aiutoma'); ?>
+                    </a>
+                    <a href="#" class="nav-tab" data-target="tab-mcp-json">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: middle; margin-right: 4px; color: #007ACC;">
+                            <path d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.94-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/>
+                        </svg>
+                        <?php esc_html_e('VS Code', 'aiutoma'); ?>
                     </a>
                     <a href="#" class="nav-tab" data-target="tab-claude">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="20" height="20">
@@ -1083,94 +1255,6 @@ class Mcp
                     <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('Antigravity / Cursor Configuration', 'aiutoma'); ?></h2>
                     <p><?php esc_html_e('Configure advanced AI coding assistants like Antigravity to use this MCP Server directly via the filesystem using CLI.', 'aiutoma'); ?></p>
 
-                    <div class="notice notice-info inline" style="margin: 15px 0; padding: 12px 15px;">
-                        <p><strong><?php esc_html_e('Recommended WordPress Authentication:', 'aiutoma'); ?></strong><br>
-                        <?php esc_html_e('In accordance with WordPress security standards, you can authenticate using a standard WordPress Application Password (Users > Profile > Application Passwords). Use HTTP Basic Auth with your username and application password (`curl -u username:password`), or use the static token header below.', 'aiutoma'); ?></p>
-                        <?php if (!$has_application_password) : ?>
-                            <p style="margin-top: 10px;">
-                                <a href="<?php echo esc_url($app_pass_url); ?>" class="button button-secondary" target="_blank">
-                                    <span class="dashicons dashicons-admin-users" style="vertical-align: middle; margin-top: -2px;"></span>
-                                    <?php esc_html_e('Set Application Password on User Edit Page', 'aiutoma'); ?> &rarr;
-                                </a>
-                            </p>
-                        <?php else : ?>
-                            <p style="margin-top: 8px; color: #1e7e34;">
-                                <span class="dashicons dashicons-yes-alt" style="vertical-align: middle; color: #46b450;"></span>
-                                <?php esc_html_e('Application Password is configured for your user.', 'aiutoma'); ?>
-                                <a href="<?php echo esc_url($app_pass_url); ?>" style="margin-left: 8px;" target="_blank"><?php esc_html_e('Manage Passwords', 'aiutoma'); ?> &rarr;</a>
-                            </p>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Prompt Credential Customizer -->
-                    <div class="aiutoma-prompt-customizer" data-dev-active="<?php echo $has_dev_extension ? '1' : '0'; ?>" data-token="<?php echo esc_attr($token); ?>">
-                        <h4>
-                            <span class="dashicons dashicons-admin-users" style="vertical-align: middle; margin-right: 4px; color: #2271b1;"></span>
-                            <?php esc_html_e('Customize Prompt Credentials', 'aiutoma'); ?>
-                        </h4>
-                        <p class="description" style="margin: 0 0 10px 0;">
-                            <?php if ($has_dev_extension) : ?>
-                                <?php
-                                /* translators: %s: user login */
-                                printf(esc_html__('Developer Extension is active: the prompt below uses your API Key and automatically acts as superuser (%s), bypassing application passwords. You can optionally select another user and enter their Application Password to use Basic Auth instead.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>');
-                                ?>
-                            <?php else : ?>
-                                <?php esc_html_e('Select a user and type or paste their Application Password. The system prompt below will update in real time with the credentials, ready to copy and use in Antigravity or Cursor.', 'aiutoma'); ?>
-                            <?php endif; ?>
-                        </p>
-                        <div class="aiutoma-customizer-grid">
-                            <div class="aiutoma-customizer-col-user">
-                                <label for="aiutoma_prompt_user_select" style="display: block; font-weight: 600; margin-bottom: 4px;">
-                                    <?php esc_html_e('Select User:', 'aiutoma'); ?>
-                                </label>
-                                <select id="aiutoma_prompt_user_select" style="width: 100%; max-width: 100%;">
-                                    <?php
-                                    foreach ($prompt_users as $p_user) {
-                                        $u_edit_url = get_edit_user_link($p_user->ID) ?: admin_url('user-edit.php?user_id=' . $p_user->ID);
-                                        $u_app_url = $u_edit_url . '#application-passwords-section';
-                                        ?>
-                                        <option value="<?php echo esc_attr($p_user->user_login); ?>" data-user-id="<?php echo esc_attr($p_user->ID); ?>" data-app-url="<?php echo esc_url($u_app_url); ?>" <?php selected($p_user->ID, $selected_prompt_user_id); ?>>
-                                            <?php echo esc_html($p_user->display_name . ' (' . $p_user->user_login . ')'); ?>
-                                        </option>
-                                        <?php
-                                    }
-                                    ?>
-                                </select>
-                            </div>
-                            <div class="aiutoma-customizer-col-pass">
-                                <label for="aiutoma_prompt_app_password" style="display: block; font-weight: 600; margin-bottom: 4px;">
-                                    <?php esc_html_e('Application Password:', 'aiutoma'); ?>
-                                </label>
-                                <div class="aiutoma-pass-input-wrap">
-                                    <input type="password" id="aiutoma_prompt_app_password" placeholder="<?php esc_attr_e('Enter Application Password (e.g. abcd efgh ijkl mnop)', 'aiutoma'); ?>" class="regular-text" style="width: 100%; font-family: monospace;" autocomplete="off" spellcheck="false">
-                                    <button type="button" class="button" id="aiutoma_prompt_toggle_pass" title="<?php esc_attr_e('Show / Hide Password', 'aiutoma'); ?>">
-                                        <span class="dashicons dashicons-visibility" style="vertical-align: middle; margin-top: -2px;"></span>
-                                    </button>
-                                    <button type="button" class="button" id="aiutoma_prompt_clear_pass" title="<?php esc_attr_e('Clear Password', 'aiutoma'); ?>" style="display: none;">&times;</button>
-                                </div>
-                            </div>
-                            <div class="aiutoma-customizer-col-btn">
-                                <a id="aiutoma_prompt_user_app_url" href="<?php echo esc_url($app_pass_url); ?>" class="button button-secondary" target="_blank">
-                                    <span class="dashicons dashicons-external" style="vertical-align: middle; margin-top: -2px;"></span>
-                                    <?php esc_html_e('Manage Passwords for Selected User', 'aiutoma'); ?> &rarr;
-                                </a>
-                            </div>
-                        </div>
-                        <div id="aiutoma_prompt_status_msg" style="margin-top: 10px; font-size: 13px; color: #666;">
-                            <?php if ($has_dev_extension) : ?>
-                                <span class="dashicons dashicons-admin-generic" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px; color: #2271b1;"></span>
-                                <strong><?php esc_html_e('Developer Extension Active:', 'aiutoma'); ?></strong>
-                                <?php
-                                /* translators: %s: user login */
-                                printf(esc_html__('Requests with API Key run as superuser (%s), bypassing Application Passwords. Enter an Application Password above only if you wish to use Basic Auth.', 'aiutoma'), '<code>' . esc_html($selected_user_login) . '</code>');
-                                ?>
-                            <?php else : ?>
-                                <span class="dashicons dashicons-info" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-top: -2px;"></span>
-                                <?php esc_html_e('Type or paste an Application Password to generate ready-to-use Basic Auth headers in the prompt below.', 'aiutoma'); ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
                     <p style="margin-top: 15px;"><strong><?php esc_html_e('Initial System Prompt', 'aiutoma'); ?></strong><br>
                         <?php esc_html_e('Copy and paste this single instruction block when starting a new chat. It contains everything the AI needs to discover and execute tools.', 'aiutoma'); ?></p>
                     <div class="aiutoma-mcp-code-block aiutoma-mcp-code-block-gemini">
@@ -1182,13 +1266,66 @@ class Mcp
                             <?php if (class_exists('\WP\MCP\Core\McpAdapter')) : ?>
                             <strong>MCP Adapter Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/aiutoma/v1/mcp-adapter'); ?><br>
                             <?php endif; ?>
-                            <span id="aiutoma_prompt_auth_title"><strong><?php echo $has_dev_extension ? esc_html__('Authentication Header:', 'aiutoma') : esc_html__('Authentication Options:', 'aiutoma'); ?></strong><?php echo $has_dev_extension ? ' ' : '<br>'; ?></span>
-                            <span id="aiutoma_prompt_auth_line" style="<?php echo $has_dev_extension ? 'display: none;' : ''; ?>">- <em>WordPress Application Password (Standard):</em> <code id="aiutoma_prompt_auth_basic">Authorization: Basic &lt;base64(<?php echo esc_html($selected_user_login); ?>:app_password)&gt;</code> (or <code id="aiutoma_prompt_auth_curl">curl -u "<?php echo esc_html($selected_user_login); ?>:your_application_password"</code>)<br></span>
-                            <span id="aiutoma_prompt_api_key_line"><?php echo $has_dev_extension ? '' : '- <em>API Key:</em> '; ?><code>X-MCP-API-Key: <?php echo esc_html($token); ?></code></span><br><br>
-                            <span id="aiutoma_prompt_safe_mode_hint"><?php if ($has_dev_extension) : ?><?php esc_html_e('If the REST API returns a 500 error, append `?aiutoma_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.', 'aiutoma'); ?><br><br><?php endif; ?></span>
-                            <strong>NEVER</strong> modify core WordPress files or theme `functions.php`. Always use structured abilities to interact with WordPress data and settings safely.
+                            <?php
+                            $default_auth_content = '<span id="aiutoma_prompt_auth_title"><strong>' . esc_html__('Authentication Options:', 'aiutoma') . '</strong><br></span>' . "\n" .
+                                '<span id="aiutoma_prompt_auth_line">- <em>' . esc_html__('WordPress Application Password (Standard):', 'aiutoma') . '</em> <code id="aiutoma_prompt_auth_basic">Authorization: Basic &lt;base64(' . esc_html($selected_user_login) . ':app_password)&gt;</code> (or <code id="aiutoma_prompt_auth_curl">curl -u "' . esc_html($selected_user_login) . ':your_application_password"</code>)<br></span>' . "\n" .
+                                '<span id="aiutoma_prompt_api_key_line">- <em>' . esc_html__('API Key:', 'aiutoma') . '</em> <code>X-MCP-API-Key: ' . esc_html($token) . '</code></span>';
+
+                            echo apply_filters('aiutoma_mcp_prompt_auth_section', $default_auth_content, $token, $selected_user_login);
+                            ?>
+                            <?php do_action('aiutoma_mcp_prompt_instructions'); ?>
                         </div>
                     </div>
+                </div>
+
+                <div class="aiutoma-mcp-tab-content postbox" id="tab-mcp-json" style="display: none;">
+                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('VS Code MCP Configuration (mcp.json)', 'aiutoma'); ?></h2>
+                    <p><?php esc_html_e('Visual Studio Code uses mcp.json files to configure Model Context Protocol servers for GitHub Copilot and Agent Customizations.', 'aiutoma'); ?></p>
+
+                    <h3 style="margin-bottom: 5px;"><?php esc_html_e('Option 1: 1-Click Download', 'aiutoma'); ?></h3>
+                    <p style="margin-top: 5px;"><?php esc_html_e('Download the pre-configured mcp.json file directly with your site endpoint and API Key.', 'aiutoma'); ?></p>
+                    <a id="aiutoma_download_mcp_json_btn" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=aiutoma_download_mcp_json'), 'aiutoma_download_mcp_json')); ?>" class="button button-primary" style="margin-bottom: 15px;">
+                        <span class="dashicons dashicons-download"></span>
+                        <?php esc_html_e('Download mcp.json', 'aiutoma'); ?>
+                    </a>
+
+                    <h3 style="margin-bottom: 5px; margin-top: 20px;"><?php esc_html_e('Option 2: Copy JSON Configuration', 'aiutoma'); ?></h3>
+                    <p style="margin-top: 5px;"><?php esc_html_e('Add this configuration to your workspace .vscode/mcp.json file or your VS Code User Configuration.', 'aiutoma'); ?></p>
+                    <?php
+                    $mcp_json_site_name = trim(get_bloginfo('name'));
+                    $mcp_json_server_key = sanitize_title($mcp_json_site_name ?: 'aiutoma');
+                    $mcp_json_headers = [];
+                    if (apply_filters('aiutoma_mcp_include_basic_auth_header', true)) {
+                        $mcp_json_headers['Authorization'] = 'Basic <base64(' . $selected_user_login . ':application_password)>';
+                    }
+                    $mcp_json_headers['X-MCP-API-Key'] = $token;
+                    $mcp_json_snippet = wp_json_encode([
+                        'servers' => [
+                            $mcp_json_server_key => [
+                                'type' => 'http',
+                                'url' => rest_url('aiutoma/v1/mcp'),
+                                'headers' => $mcp_json_headers,
+                            ],
+                        ],
+                    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    ?>
+                    <div class="aiutoma-mcp-code-block">
+                        <button type="button" class="button button-small aiutoma-copy-btn" data-copy-target="aiutoma_mcp_json_content"><?php esc_html_e('Copy', 'aiutoma'); ?></button>
+                        <pre id="aiutoma_mcp_json_content" data-server-key="<?php echo esc_attr($mcp_json_server_key); ?>" data-rest-url="<?php echo esc_url(rest_url('aiutoma/v1/mcp')); ?>" style="margin: 0; padding: 0; background: transparent; border: none; font-family: monospace;"><?php echo esc_html($mcp_json_snippet); ?></pre>
+                    </div>
+
+                    <h3 style="margin-bottom: 5px; margin-top: 20px;"><?php esc_html_e('How to use in VS Code', 'aiutoma'); ?></h3>
+                    <ol style="margin-left: 1.5em; margin-top: 5px; line-height: 1.8;">
+                        <li><strong><?php esc_html_e('Workspace Configuration:', 'aiutoma'); ?></strong> <?php esc_html_e('Save the file to .vscode/mcp.json in your workspace root.', 'aiutoma'); ?></li>
+                        <li><strong><?php esc_html_e('User Configuration (All Workspaces):', 'aiutoma'); ?></strong> <?php esc_html_e('Press Ctrl+Shift+P (or Cmd+Shift+P on macOS), select "MCP: Open User Configuration", and paste into the "servers" object.', 'aiutoma'); ?></li>
+                        <li><strong><?php esc_html_e('View in VS Code:', 'aiutoma'); ?></strong> <?php esc_html_e('Check the Extensions view under "MCP SERVERS" to confirm the connection status and tools.', 'aiutoma'); ?></li>
+                    </ol>
+                    <p style="margin-top: 10px;">
+                        <a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" target="_blank" class="button button-secondary">
+                            <span class="dashicons dashicons-external"></span>
+                            <?php esc_html_e('Official VS Code MCP Documentation', 'aiutoma'); ?> &rarr;
+                        </a>
+                    </p>
                 </div>
 
                 <div class="aiutoma-mcp-tab-content postbox" id="tab-claude" style="display: none;">
@@ -1259,17 +1396,13 @@ class Mcp
                         </li>
                         <li><strong><?php esc_html_e('Setup Authentication:', 'aiutoma'); ?></strong> <?php esc_html_e('Click the gear icon in the Authentication section and choose either standard Basic Auth or Custom API Key:', 'aiutoma'); ?>
                             <div style="margin-top: 10px; margin-bottom: 10px;">
+                                <?php if (apply_filters('aiutoma_mcp_show_app_password_notice', true)) : ?>
                                 <p><strong><?php esc_html_e('Option A: Standard WordPress Application Password (Recommended)', 'aiutoma'); ?></strong><br>
-                                <?php esc_html_e('Authentication Type: Basic. Enter your WordPress username and an Application Password generated in Users > Profile.', 'aiutoma'); ?></p>
-                                <?php if (!$has_application_password) : ?>
-                                    <p style="margin-top: 5px; margin-bottom: 12px;">
-                                        <a href="<?php echo esc_url($app_pass_url); ?>" class="button button-secondary button-small" target="_blank">
-                                            <span class="dashicons dashicons-admin-users" style="vertical-align: middle; margin-top: -2px;"></span>
-                                            <?php esc_html_e('Set Application Password on User Edit Page', 'aiutoma'); ?> &rarr;
-                                        </a>
-                                    </p>
-                                <?php endif; ?>
+                                <?php esc_html_e('Authentication Type: Basic. Enter your WordPress username and the Application Password configured in the credentials section above.', 'aiutoma'); ?></p>
                                 <p><strong><?php esc_html_e('Option B: Custom API Key Header', 'aiutoma'); ?></strong></p>
+                                <?php else : ?>
+                                <p><strong><?php esc_html_e('Custom API Key Header Authentication', 'aiutoma'); ?></strong></p>
+                                <?php endif; ?>
                             </div>
                             <ul style="list-style-type: disc; margin-left: 20px; margin-top: 5px;">
                                 <li><strong><?php esc_html_e('Authentication Type:', 'aiutoma'); ?></strong> <?php esc_html_e('API Key', 'aiutoma'); ?></li>
