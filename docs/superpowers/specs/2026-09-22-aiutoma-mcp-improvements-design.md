@@ -261,3 +261,4 @@ During remote MCP REST API interactions with WordPress running AIUTOMA, several 
 3. **New WooCommerce Abilities**:
    - Test `woocommerce/bulk-update-variations` on a variable product: update regular price, stock, and custom `meta_data` (`_b2c_price`, `_b2b_price`); verify parent sync and transient invalidation.
    - Test `woocommerce/product-diagnostics` on both simple and variable products; verify detection of missing prices, stock status, and filter hooks.
+

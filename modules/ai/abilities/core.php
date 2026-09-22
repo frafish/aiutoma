@@ -772,6 +772,9 @@ trait Core
                             $pages = is_object($results) && isset($results->max_num_pages) ? (int)$results->max_num_pages : (count($products) > 0 ? 1 : 0);
                             $total = is_object($results) && isset($results->total) ? (int)$results->total : count($products);
 
+                            $fmt_p = function($p) {
+                                return (is_numeric($p) || (is_string($p) && $p !== '')) ? (string)$p : null;
+                            };
                             $formatted = [];
                             foreach ($products as $product) {
                                 $stock_quantity = $product->get_stock_quantity();
@@ -786,9 +789,9 @@ trait Core
                                     'sku' => $product->get_sku(),
                                     'currency' => function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : 'USD',
                                     'currency_symbol' => function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol(), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401) : '$',
-                                    'price' => $product->get_price(),
-                                    'regular_price' => $product->get_regular_price(),
-                                    'sale_price' => $product->get_sale_price(),
+                                    'price' => $fmt_p($product->get_price()),
+                                    'regular_price' => $fmt_p($product->get_regular_price()),
+                                    'sale_price' => $fmt_p($product->get_sale_price()),
                                     'stock_status' => $product->get_stock_status(),
                                     'stock_quantity' => null === $stock_quantity ? null : (function_exists('wc_stock_amount') ? wc_stock_amount($stock_quantity) : (int)$stock_quantity),
                                     'manage_stock' => (bool)$product->get_manage_stock(),

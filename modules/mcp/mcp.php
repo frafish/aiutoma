@@ -1273,6 +1273,8 @@ class Mcp
 
                             echo apply_filters('aiutoma_mcp_prompt_auth_section', $default_auth_content, $token, $selected_user_login);
                             ?>
+                            <br><br>
+                            <em><strong><?php esc_html_e('SSL / Staging Note:', 'aiutoma'); ?></strong> <?php esc_html_e('If interacting with a staging or local development environment with a self-signed SSL certificate (curl error 60), pass the -k or --insecure option in your curl commands.', 'aiutoma'); ?></em>
                             <?php do_action('aiutoma_mcp_prompt_instructions'); ?>
                         </div>
                     </div>
