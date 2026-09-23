@@ -55,7 +55,7 @@ trait SettingsUi {
                             <?php if (!\Aiutoma\Modules\Ai\Ai::instance()->has_ai_models()): ?>
                                 <div class="notice notice-warning inline" style="margin: 0 0 15px 0; padding: 10px 15px; border-left: 4px solid #dba617; background: #fff;">
                                     <p style="margin: 0; font-size: 13px;">
-                                        <strong><?php esc_html_e('Nota sui Moduli AI:', 'aiutoma'); ?></strong> <?php esc_html_e('Nessun modello AI risulta configurato o abilitato. I moduli Editor Agent, Frontend Chatbot, SEO e WPML rimangono disattivati finché non viene configurato almeno un modello in Connettori o Modelli AI.', 'aiutoma'); ?>
+                                        <strong><?php esc_html_e('Note on AI Modules:', 'aiutoma'); ?></strong> <?php esc_html_e('No AI models are configured or enabled. The Editor Agent, Frontend Chatbot, SEO, and WPML modules remain disabled until at least one model is configured in Connectors or AI Models.', 'aiutoma'); ?>
                                     </p>
                                 </div>
                             <?php endif; ?>
