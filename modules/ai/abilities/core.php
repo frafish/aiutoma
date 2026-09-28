@@ -480,29 +480,36 @@ trait Core
         ]);
 
         
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-options', [
-            'category' => 'aiutoma',
-            'label' => __('Manage Options', 'aiutoma'),
-            'description' => __('Get, update, or delete WordPress site options safely.', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $action = $input['action'];
-                $option_name = sanitize_key($input['option_name'] ?? '');
+        if (apply_filters('aiutoma_enable_core_manage_options', true)) {
+            \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-options', [
+                'category' => 'aiutoma',
+                'label' => __('Read Options', 'aiutoma'),
+                'description' => __('Read WordPress site options safely. Read-only; does not update or delete options.', 'aiutoma'),
+                'meta' => [
+                    'plugin_name' => 'Aiutoma',
+                    'mcp' => ['public' => true],
+                    'annotations' => [
+                        'readonly' => true,
+                        'destructive' => false,
+                        'idempotent' => true,
+                    ],
+                ],
+                'execute_callback' => function ($input) {
+                    $action = $input['action'] ?? 'get';
+                    $option_name = sanitize_key($input['option_name'] ?? '');
 
-                if (empty($option_name)) {
-                    return new \WP_Error('missing_option_name', __('Option name is required.', 'aiutoma'));
-                }
+                    if (empty($option_name)) {
+                        return new \WP_Error('missing_option_name', __('Option name is required.', 'aiutoma'));
+                    }
 
-                if (strpos($option_name, 'connectors_ai_') === 0) {
-                    return new \WP_Error('protected_option', __('Access to WordPress AI Client credentials is restricted.', 'aiutoma'));
-                }
+                    if ($action !== 'get') {
+                        return new \WP_Error('unsupported_action', __('Options management is strictly read-only in this configuration. Modifying options is not permitted.', 'aiutoma'));
+                    }
 
-                $protected_options = ['siteurl', 'home', 'active_plugins', 'admin_email', 'users_can_register', 'default_role'];
-                if (in_array($option_name, $protected_options, true) && in_array($action, ['update', 'delete'], true)) {
-                    /* translators: %s: option name */
-                    return new \WP_Error('protected_option', sprintf(__('Modifying the "%s" option is restricted for site security.', 'aiutoma'), $option_name));
-                }
+                    if (strpos($option_name, 'connectors_ai_') === 0 || strpos($option_name, 'auth_key') !== false || strpos($option_name, 'secret') !== false || strpos($option_name, 'salt') !== false) {
+                        return new \WP_Error('protected_option', __('Access to sensitive site credentials and options is restricted.', 'aiutoma'));
+                    }
 
-                if ($action === 'get') {
                     $default = $input['default'] ?? null;
                     $value = get_option($option_name, $default);
                     return [
@@ -510,62 +517,30 @@ trait Core
                         'option_name' => $option_name,
                         'value' => $value,
                     ];
-                } elseif ($action === 'update') {
-                    if (!array_key_exists('option_value', $input)) {
-                        return new \WP_Error('missing_option_value', __('Option value is required for update.', 'aiutoma'));
-                    }
-                    $option_value = $input['option_value'];
-                    $autoload = isset($input['autoload']) ? (bool) $input['autoload'] : null;
-                    $updated = update_option($option_name, $option_value, $autoload);
-                    return [
-                        'success' => true,
-                        'option_name' => $option_name,
-                        'updated' => $updated,
-                        /* translators: %s: option name */
-                        'message' => sprintf(__('Option "%s" successfully saved.', 'aiutoma'), $option_name)
-                    ];
-                } elseif ($action === 'delete') {
-                    $deleted = delete_option($option_name);
-                    return [
-                        'success' => true,
-                        'option_name' => $option_name,
-                        'deleted' => $deleted,
-                        /* translators: %s: option name */
-                        'message' => sprintf(__('Option "%s" deleted.', 'aiutoma'), $option_name)
-                    ];
-                }
-
-                return new \WP_Error('invalid_action', __('Invalid action specified.', 'aiutoma'));
-            },
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'action' => [
-                        'type' => 'string',
-                        'enum' => ['get', 'update', 'delete'],
-                        'description' => 'The action to perform: "get", "update", or "delete".'
+                },
+                'permission_callback' => function () {
+                    return current_user_can('manage_options');
+                },
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'action' => [
+                            'type' => 'string',
+                            'enum' => ['get'],
+                            'description' => 'The action to perform: "get" to read an option value (read-only).'
+                        ],
+                        'option_name' => [
+                            'type' => 'string',
+                            'description' => 'The name of the WordPress option to read.'
+                        ],
+                        'default' => [
+                            'description' => 'Default value to return if option does not exist (optional).'
+                        ]
                     ],
-                    'option_name' => [
-                        'type' => 'string',
-                        'description' => 'The name of the WordPress option.'
-                    ],
-                    'option_value' => [
-                        'description' => 'The value to store (required for "update"). Can be string, number, boolean, or array.'
-                    ],
-                    'default' => [
-                        'description' => 'Default value to return if option does not exist (optional, for "get").'
-                    ],
-                    'autoload' => [
-                        'type' => 'boolean',
-                        'description' => 'Whether to autoload the option when WordPress starts (optional, for "update").'
-                    ]
-                ],
-                'required' => ['action', 'option_name']
-            ]
-        ]);
+                    'required' => ['action', 'option_name']
+                ]
+            ]);
+        }
 
         \Aiutoma\Modules\Ai\Abilities::register('aiutoma/abilities', [
             'category' => 'aiutoma',
@@ -719,6 +694,12 @@ trait Core
                         return new \WP_Error('ability_not_found', sprintf(__('Ability "%s" not found.', 'aiutoma'), $ability_name));
                     }
 
+                    // Block execution of administrative or restricted abilities in production
+                    if (class_exists('\Aiutoma\Modules\Mcp\Mcp') && !\Aiutoma\Modules\Mcp\Mcp::is_ability_allowed_for_mcp($ability_name)) {
+                        /* translators: %s: ability name */
+                        return new \WP_Error('restricted_ability', sprintf(__('Ability "%s" is restricted from dynamic execution.', 'aiutoma'), $ability_name));
+                    }
+
                     $ability_input = isset($input['ability_input']) && is_array($input['ability_input']) ? $input['ability_input'] : [];
 
                     // Strictly enforce target ability permission callback (fail-closed / deny by default)
@@ -851,6 +832,7 @@ trait Core
                 return current_user_can('edit_posts');
             },
             'meta' => [
+                'show_in_rest' => false,
                 'mcp' => ['public' => false],
                 'annotations' => [
                     'readonly' => false,

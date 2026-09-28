@@ -4,6 +4,12 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 trait Skills {
 
     public function register_skills_hooks() {
+        if (did_action('init')) {
+            $this->register_skills_cpt();
+        } else {
+            add_action('init', [$this, 'register_skills_cpt']);
+        }
+
         add_action('rest_api_init', function() {
             register_rest_route('aiutoma/v1', '/skills', [
                 'methods' => 'GET',
@@ -18,6 +24,11 @@ trait Skills {
             register_rest_route('aiutoma/v1', '/skills', [
                 'methods' => 'DELETE',
                 'callback' => [$this, 'api_delete_skill'],
+                'permission_callback' => function () { return current_user_can('manage_options'); }
+            ]);
+            register_rest_route('aiutoma/v1', '/skills/download/(?P<id>[a-zA-Z0-9_\.-]+)', [
+                'methods' => 'GET',
+                'callback' => [$this, 'api_download_skill'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }
             ]);
         });
@@ -115,38 +126,84 @@ trait Skills {
         return $skills;
     }
 
-    public function get_skills_dir(): string {
-        $upload_dir = wp_upload_dir();
-        $dir = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/skills';
-        if (!is_dir($dir)) {
-            wp_mkdir_p($dir);
+    public function register_skills_cpt() {
+        if (!post_type_exists('aiutoma_skill')) {
+            register_post_type('aiutoma_skill', [
+                'label'               => __('AI Skills', 'aiutoma'),
+                'public'              => false,
+                'publicly_queryable'  => false,
+                'show_ui'             => false,
+                'show_in_menu'        => false,
+                'show_in_nav_menus'   => false,
+                'show_in_rest'        => false,
+                'exclude_from_search' => true,
+                'supports'            => ['title', 'editor'],
+                'can_export'          => true,
+            ]);
         }
-        return $dir;
+    }
+
+    private function find_skill_post(string $title): ?\WP_Post {
+        $posts = get_posts([
+            'post_type'      => 'aiutoma_skill',
+            'post_status'    => 'publish',
+            'title'          => $title,
+            'posts_per_page' => 1,
+        ]);
+        if (!empty($posts)) {
+            return $posts[0];
+        }
+
+        $slug = sanitize_title(preg_replace('/\.(md|txt)$/i', '', $title));
+        $posts = get_posts([
+            'post_type'      => 'aiutoma_skill',
+            'post_status'    => 'publish',
+            'name'           => $slug,
+            'posts_per_page' => 1,
+        ]);
+
+        return !empty($posts) ? $posts[0] : null;
+    }
+
+    public function get_custom_skills(): array {
+
+        $posts = get_posts([
+            'post_type'      => 'aiutoma_skill',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+        ]);
+
+        $custom_skills = [];
+        foreach ($posts as $post) {
+            $filename = $post->post_title;
+            if (empty($filename)) {
+                $filename = $post->post_name . '.md';
+            }
+            if (strpos($filename, '.md') === false && strpos($filename, '.txt') === false) {
+                $filename .= '.md';
+            }
+            $content = $post->post_content;
+            $meta = $this->extract_skill_metadata($content, $filename);
+            $custom_skills[] = [
+                'id'          => $filename,
+                'slug'        => preg_replace('/\.(md|txt)$/i', '', $filename),
+                'name'        => $meta['name'],
+                'description' => $meta['description'],
+                'is_builtin'  => false,
+                'content'     => $content,
+            ];
+        }
+
+        return $custom_skills;
     }
 
     public function get_all_skills(): array {
-        $skills = $this->get_builtin_skills();
-        $dir = $this->get_skills_dir();
-
-        if (is_dir($dir)) {
-            $files = glob($dir . '/*.{txt,md}', GLOB_BRACE);
-            if (!empty($files)) {
-                foreach ($files as $file) {
-                    $filename = basename($file);
-                    if ($filename === 'README.txt') continue;
-                    $content = file_get_contents($file);
-                    $meta = $this->extract_skill_metadata($content, $filename);
-                    $skills[] = [
-                        'id' => $filename,
-                        'slug' => preg_replace('/\.(md|txt)$/i', '', $filename),
-                        'name' => $meta['name'],
-                        'description' => $meta['description'],
-                        'is_builtin' => false,
-                        'content' => $content
-                    ];
-                }
-            }
-        }
+        $skills = array_merge(
+            $this->get_builtin_skills(),
+            $this->get_custom_skills()
+        );
 
         return apply_filters('aiutoma/skills', $skills);
     }
@@ -200,11 +257,30 @@ trait Skills {
         return new \WP_REST_Response(['success' => true, 'skills' => $skills], 200);
     }
 
+    public function api_download_skill(\WP_REST_Request $request) {
+        $id = sanitize_file_name($request->get_param('id') ?? '');
+        if (empty($id)) {
+            return new \WP_REST_Response(['message' => __('ID is required.', 'aiutoma')], 400);
+        }
+        $skill = $this->get_skill_by_id($id);
+        if (!$skill) {
+            return new \WP_REST_Response(['message' => __('Skill not found.', 'aiutoma')], 404);
+        }
+        $filename = $skill['id'];
+        if (strpos($filename, '.md') === false && strpos($filename, '.txt') === false) {
+            $filename .= '.md';
+        }
+        header('Content-Type: text/markdown; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . esc_attr($filename) . '"');
+        echo $skill['content'];
+        exit;
+    }
+
     public function api_save_skill(\WP_REST_Request $request) {
-        $params = $request->get_json_params();
-        $id = sanitize_file_name($params['id'] ?? '');
-        $content = $params['content'] ?? '';
-        $old_id = sanitize_file_name($params['old_id'] ?? '');
+        $params = $request->get_json_params() ?: [];
+        $id = sanitize_file_name($request->get_param('id') ?? ($params['id'] ?? ''));
+        $content = $request->get_param('content') ?? ($params['content'] ?? '');
+        $old_id = sanitize_file_name($request->get_param('old_id') ?? ($params['old_id'] ?? ''));
 
         if (empty($id)) {
             return new \WP_REST_Response(['success' => false, 'message' => __('ID is required.', 'aiutoma')], 400);
@@ -218,24 +294,32 @@ trait Skills {
             $id .= '.md';
         }
 
-        $dir = $this->get_skills_dir();
-        
-        if (!empty($old_id) && $old_id !== $id) {
-            $old_path = $dir . '/' . $old_id;
-            if (file_exists($old_path)) {
-                wp_delete_file($old_path);
-            }
-        }
+        $target_lookup = !empty($old_id) ? $old_id : $id;
+        $existing = $this->find_skill_post($target_lookup);
 
-        $path = $dir . '/' . $id;
-        file_put_contents($path, $content);
+        if ($existing) {
+            wp_update_post([
+                'ID'           => $existing->ID,
+                'post_title'   => $id,
+                'post_name'    => sanitize_title($id),
+                'post_content' => $content,
+            ]);
+        } else {
+            wp_insert_post([
+                'post_type'    => 'aiutoma_skill',
+                'post_title'   => $id,
+                'post_name'    => sanitize_title($id),
+                'post_content' => $content,
+                'post_status'  => 'publish',
+            ]);
+        }
 
         return new \WP_REST_Response(['success' => true, 'message' => __('Skill saved.', 'aiutoma')], 200);
     }
 
     public function api_delete_skill(\WP_REST_Request $request) {
-        $params = $request->get_json_params();
-        $id = sanitize_file_name($params['id'] ?? '');
+        $params = $request->get_json_params() ?: [];
+        $id = sanitize_file_name($request->get_param('id') ?? ($params['id'] ?? ''));
 
         if (empty($id)) {
             return new \WP_REST_Response(['success' => false, 'message' => __('ID is required.', 'aiutoma')], 400);
@@ -245,11 +329,9 @@ trait Skills {
             return new \WP_REST_Response(['success' => false, 'message' => __('Built-in skills cannot be deleted.', 'aiutoma')], 403);
         }
 
-        $dir = $this->get_skills_dir();
-        $path = $dir . '/' . $id;
-
-        if (file_exists($path)) {
-            wp_delete_file($path);
+        $post = $this->find_skill_post($id);
+        if ($post) {
+            wp_delete_post($post->ID, true);
             return new \WP_REST_Response(['success' => true, 'message' => __('Skill deleted.', 'aiutoma')], 200);
         }
 

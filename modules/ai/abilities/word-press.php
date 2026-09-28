@@ -154,15 +154,28 @@ trait WordPress
             ]
         ]);
 
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-users', [
-            'category' => 'aiutoma',
-            'label' => __('Manage Users & Profiles', 'aiutoma'),
-            'description' => __('View WordPress users and update user profile information and metadata. Does not create users, delete users, or modify roles and capabilities.', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $action = $input['action'] ?? 'get_users';
-                $args = $input['args'] ?? [];
+        if (apply_filters('aiutoma_enable_core_manage_users', true)) {
+            \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-users', [
+                'category' => 'aiutoma',
+                'label' => __('View Users & Profiles', 'aiutoma'),
+                'description' => __('View WordPress users and profile information. Read-only; does not create, update, or delete users or modify roles.', 'aiutoma'),
+                'meta' => [
+                    'plugin_name' => 'Aiutoma',
+                    'mcp' => ['public' => true],
+                    'annotations' => [
+                        'readonly' => true,
+                        'destructive' => false,
+                        'idempotent' => true,
+                    ],
+                ],
+                'execute_callback' => function ($input) {
+                    $action = $input['action'] ?? 'get_users';
+                    $args = $input['args'] ?? [];
 
-                if ($action === 'get_users' || $action === 'get') {
+                    if ($action !== 'get_users' && $action !== 'get') {
+                        return new \WP_Error('unsupported_action', __('User management is strictly read-only in this configuration. Modifying users is not permitted.', 'aiutoma'));
+                    }
+
                     if (!current_user_can('list_users')) {
                         return new \WP_Error('unauthorized', __('You do not have permission to list users.', 'aiutoma'));
                     }
@@ -193,101 +206,27 @@ trait WordPress
                         ];
                     }
                     return ['success' => true, 'total' => count($data), 'users' => $data];
-                } elseif ($action === 'update_user' || $action === 'update_profile') {
-                    $user_id = intval($args['ID'] ?? ($args['id'] ?? ($args['user_id'] ?? 0)));
-                    if (!$user_id) {
-                        $user_id = get_current_user_id();
-                    }
-                    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-                        return new \WP_Error('unauthorized', __('You do not have permission to edit this user.', 'aiutoma'));
-                    }
-
-                    // Explicitly block any attempt to alter roles, capabilities, passwords, or usernames
-                    if (isset($args['role']) || isset($args['roles']) || isset($args['capabilities'])) {
-                        return new \WP_Error('forbidden_field', __('Modifying roles or capabilities is not permitted via this ability for security reasons.', 'aiutoma'));
-                    }
-                    if (isset($args['user_pass']) || isset($args['password'])) {
-                        return new \WP_Error('forbidden_field', __('Password modifications are not permitted via this ability for security reasons.', 'aiutoma'));
-                    }
-                    if (isset($args['user_login'])) {
-                        return new \WP_Error('forbidden_field', __('Usernames cannot be modified.', 'aiutoma'));
-                    }
-
-                    $update_data = ['ID' => $user_id];
-                    $allowed_profile_fields = [
-                        'display_name',
-                        'first_name',
-                        'last_name',
-                        'nickname',
-                        'description',
-                        'user_url',
-                        'user_email'
-                    ];
-
-                    foreach ($allowed_profile_fields as $field) {
-                        if (isset($args[$field])) {
-                            if ($field === 'user_email') {
-                                $email = sanitize_email($args[$field]);
-                                if (!is_email($email)) {
-                                    return new \WP_Error('invalid_email', __('Invalid email address.', 'aiutoma'));
-                                }
-                                $update_data['user_email'] = $email;
-                            } elseif ($field === 'user_url') {
-                                $update_data['user_url'] = esc_url_raw($args[$field]);
-                            } elseif ($field === 'description') {
-                                $update_data['description'] = sanitize_textarea_field($args[$field]);
-                            } else {
-                                $update_data[$field] = sanitize_text_field($args[$field]);
-                            }
-                        }
-                    }
-
-                    if (count($update_data) > 1) {
-                        $updated = wp_update_user($update_data);
-                        if (is_wp_error($updated)) {
-                            return $updated;
-                        }
-                    }
-
-                    // Update user meta if provided (strictly preventing capability escalation)
-                    if (!empty($args['meta']) && is_array($args['meta'])) {
-                        $disallowed_meta = ['wp_capabilities', 'wp_user_level', 'session_tokens', 'wp_user_roles'];
-                        foreach ($args['meta'] as $meta_key => $meta_val) {
-                            $meta_key = sanitize_key($meta_key);
-                            if (in_array(strtolower($meta_key), $disallowed_meta, true) || strpos($meta_key, 'capabilit') !== false || strpos($meta_key, 'user_level') !== false) {
-                                continue;
-                            }
-                            if (is_string($meta_val)) {
-                                $meta_val = sanitize_text_field($meta_val);
-                            }
-                            update_user_meta($user_id, $meta_key, $meta_val);
-                        }
-                    }
-
-                    return ['success' => true, 'user_id' => $user_id, 'message' => __('User profile updated successfully.', 'aiutoma')];
-                }
-
-                return new \WP_Error('invalid_action', __('Unsupported action. Supported actions: "get_users", "update_user".', 'aiutoma'));
-            },
-            'permission_callback' => function () {
-                return current_user_can('list_users') || current_user_can('edit_users');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'action' => [
-                        'type' => 'string',
-                        'enum' => ['get_users', 'update_user'],
-                        'description' => 'Action to perform: "get_users" to query user profiles, or "update_user" to update safe profile fields and meta.'
+                },
+                'permission_callback' => function () {
+                    return current_user_can('list_users');
+                },
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'action' => [
+                            'type' => 'string',
+                            'enum' => ['get_users', 'get'],
+                            'description' => 'Action to perform: "get_users" to query user profiles (read-only).'
+                        ],
+                        'args' => [
+                            'type' => 'object',
+                            'description' => 'Arguments for "get_users": {"role": "author", "search": "keyword", "number": 10}.'
+                        ]
                     ],
-                    'args' => [
-                        'type' => 'object',
-                        'description' => 'Arguments. For "get_users": {"role": "author", "search": "keyword"}. For "update_user": {"ID": 2, "first_name": "John", "description": "Bio...", "meta": {"custom_field": "value"}} (Note: roles, capabilities, and passwords cannot be modified).'
-                    ]
-                ],
-                'required' => ['action']
-            ]
-        ]);
+                    'required' => ['action']
+                ]
+            ]);
+        }
 
         \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-media', [
             'category' => 'aiutoma',

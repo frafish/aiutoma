@@ -1310,28 +1310,6 @@ trait Gutenberg
 
     private function generate_unified_patch($file_name, $old_str, $new_str)
     {
-        if (function_exists('exec')) {
-            $temp_old = wp_tempnam('diff_old');
-            $temp_new = wp_tempnam('diff_new');
-            file_put_contents($temp_old, $old_str);
-            file_put_contents($temp_new, $new_str);
-            $cmd = sprintf(
-                'diff -u --label %s --label %s %s %s',
-                escapeshellarg("a/{$file_name}"),
-                escapeshellarg("b/{$file_name}"),
-                escapeshellarg($temp_old),
-                escapeshellarg($temp_new)
-            );
-            $diff_output = [];
-            exec($cmd, $diff_output);
-            @unlink($temp_old);
-            @unlink($temp_new);
-            if (!empty($diff_output)) {
-                return implode("\n", $diff_output);
-            }
-        }
-
-        // Lightweight pure PHP fallback
         $old_lines = explode("\n", str_replace("\r\n", "\n", $old_str));
         $new_lines = explode("\n", str_replace("\r\n", "\n", $new_str));
         $diff = ["--- a/{$file_name}", "+++ b/{$file_name}", "@@ -1," . count($old_lines) . " +1," . count($new_lines) . " @@"];
@@ -1353,25 +1331,15 @@ trait Gutenberg
                 'plugin_name' => 'Aiutoma',
                 'mcp' => ['public' => true]
             ],
-            'description' => __('Validates WordPress block content in two stages and returns a combined report. First runs a static core/html block policy check; if it finds invalid core/html blocks, it returns only those (rewrite them as editable core or plugin blocks and call again) without touching the editor. Once the policy check passes, it validates the content in the site\'s real block editor: with filePath it applies safe live-editor serialization fixes directly to the file and returns a CSS-review diff; with inline content it returns the exact fixed block content plus the diff.', 'aiutoma'),
+            'description' => __('Validates WordPress block content in two stages and returns a combined report. First runs a static core/html block policy check; if it finds invalid core/html blocks, it returns only those without touching the editor. Once the policy check passes, it validates the content in the site\'s real block editor and returns any serialization fixes along with a unified diff for CSS review.', 'aiutoma'),
             'execute_callback' => function ($input) {
                 $block_content = null;
-                $file_name = 'inline content';
-                $should_apply_fix = false;
-                $file_path = null;
+                $file_name = 'block-content.html';
 
-                if (!empty($input['filePath']) && is_string($input['filePath'])) {
-                    $file_path = wp_normalize_path($input['filePath']);
-                    if (!is_file($file_path) || !is_readable($file_path)) {
-                        return new \WP_Error('file_not_found', sprintf(__('File not found or unreadable: %s', 'aiutoma'), $file_path));
-                    }
-                    $block_content = file_get_contents($file_path);
-                    $file_name = basename(dirname($file_path)) . '/' . basename($file_path);
-                    $should_apply_fix = true;
-                } elseif (isset($input['content']) && is_string($input['content'])) {
+                if (isset($input['content']) && is_string($input['content'])) {
                     $block_content = $input['content'];
                 } else {
-                    return new \WP_Error('missing_input', __('Either content or filePath must be provided.', 'aiutoma'));
+                    return new \WP_Error('missing_input', __('Block content must be provided in the "content" parameter.', 'aiutoma'));
                 }
 
                 // Stage 1: HTML block policy check
@@ -1466,17 +1434,11 @@ trait Gutenberg
 
                 if (!$content_matches) {
                     $diff = $this->generate_unified_patch($file_name, $block_content, $fixed_content);
-                    if ($should_apply_fix && $file_path) {
-                        file_put_contents($file_path, $fixed_content);
-                        $lines[] = sprintf('Auto-fix applied: %d/%d blocks valid after live-editor serialization.', $valid_blocks, $total_blocks);
-                        $lines[] = sprintf('The fixed block content has already been written to %s. Do not replace it manually. Use the diff only to review class/nesting changes and update CSS selectors if needed.', $file_name);
-                    } else {
-                        $lines[] = sprintf('Auto-fix proposal: %d/%d blocks valid after live-editor serialization.', $valid_blocks, $total_blocks);
-                        $lines[] = 'Use the fixed block content below as the replacement block content. Use the diff only to review class/nesting changes and update CSS selectors if needed.';
-                        $lines[] = '';
-                        $lines[] = 'Fixed block content:';
-                        $lines[] = "```html\n{$fixed_content}\n```";
-                    }
+                    $lines[] = sprintf('Auto-fix proposal: %d/%d blocks valid after live-editor serialization.', $valid_blocks, $total_blocks);
+                    $lines[] = 'Use the fixed block content below as the replacement block content. Use the diff to review class/nesting changes and update CSS selectors if needed.';
+                    $lines[] = '';
+                    $lines[] = 'Fixed block content:';
+                    $lines[] = "```html\n{$fixed_content}\n```";
                     $lines[] = '';
                     $lines[] = 'Diff for CSS review:';
                     $lines[] = "```diff\n{$diff}\n```";
@@ -1492,19 +1454,12 @@ trait Gutenberg
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
-                    'nameOrPath' => [
-                        'type' => 'string',
-                        'description' => 'The site name or file system path (defaults to current WordPress site).'
-                    ],
-                    'filePath' => [
-                        'type' => 'string',
-                        'description' => 'Path to a file containing WordPress block content to validate and fix.'
-                    ],
                     'content' => [
                         'type' => 'string',
                         'description' => 'Raw WordPress block content (HTML with block comments) to validate and fix.'
                     ]
-                ]
+                ],
+                'required' => ['content']
             ]
         ]);
     }

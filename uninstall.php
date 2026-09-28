@@ -49,32 +49,32 @@ global $wpdb;
 $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_aiutoma\_%' OR option_name LIKE '\_site\_transient\_aiutoma\_%'");
 
 // 3. Delete Custom Tables
-$table_name = $wpdb->prefix . 'document_embeddings';
-// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-$wpdb->query("DROP TABLE IF EXISTS {$table_name}");
+$custom_tables = [
+    $wpdb->prefix . 'document_embeddings',
+    $wpdb->prefix . 'aiutoma_oauth_clients',
+    $wpdb->prefix . 'aiutoma_oauth_tokens',
+    $wpdb->prefix . 'aiutoma_request_logs',
+];
 
-$oauth_clients = $wpdb->prefix . 'aiutoma_oauth_clients';
-// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-$wpdb->query("DROP TABLE IF EXISTS {$oauth_clients}");
-
-$oauth_tokens = $wpdb->prefix . 'aiutoma_oauth_tokens';
-// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-$wpdb->query("DROP TABLE IF EXISTS {$oauth_tokens}");
-
-// If we are the only one using it, drop it. (WP directory compliance)
-$request_logs = $wpdb->prefix . 'aiutoma_request_logs';
-// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-$wpdb->query("DROP TABLE IF EXISTS {$request_logs}");
+foreach ($custom_tables as $table) {
+    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $wpdb->query("DROP TABLE IF EXISTS `" . esc_sql($table) . "`");
+}
 
 delete_option('aiutoma_oauth_db_version');
+delete_option('aiutoma_skills_migrated_to_cpt');
 
-// 4. Delete Custom Post Types (aiutoma_task) if needed. 
-// Note: Usually it's better to keep user data unless explicitly asked, but to strictly comply with "no junk left behind", we can delete tasks.
-$tasks = get_posts([
-    'post_type' => 'aiutoma_task',
-    'numberposts' => -1,
-    'post_status' => 'any'
-]);
-foreach ($tasks as $task) {
-    wp_delete_post($task->ID, true); // Force delete
+// 4. Delete Custom Post Types (aiutoma_task, aiutoma_skill)
+$post_types = ['aiutoma_task', 'aiutoma_skill'];
+foreach ($post_types as $pt) {
+    $cpt_posts = get_posts([
+        'post_type'   => $pt,
+        'numberposts' => -1,
+        'post_status' => 'any',
+    ]);
+    if (!empty($cpt_posts)) {
+        foreach ($cpt_posts as $p) {
+            wp_delete_post($p->ID, true); // Force delete
+        }
+    }
 }
