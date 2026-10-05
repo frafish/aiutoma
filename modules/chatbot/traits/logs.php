@@ -127,7 +127,7 @@ trait Logs {
                 }
                 
                 /* translators: %s: Session ID */
-                echo '<h3>' . sprintf(esc_html__('Session ID: %s', 'aiutoma'), esc_html($session_id)) . '</h3>';
+                echo '<h3>' . esc_html(sprintf(__('Session ID: %s', 'aiutoma'), $session_id)) . '</h3>';
                 
                 $del_session_url = wp_nonce_url(admin_url('admin.php?page=aiutoma-chatbot-logs&action=delete_session&session_id=' . urlencode($session_id)), 'aiutoma_delete_log');
                 echo '<p>';
@@ -323,7 +323,7 @@ trait Logs {
                 echo '<label><input type="checkbox" id="aiutoma_manual_mode_toggle" data-session="' . esc_attr($session_id) . '" ' . checked($manual_mode, true, false) . '> ' . esc_html__('Enable Manual Mode (AI will stop replying)', 'aiutoma') . '</label>';
                 echo '</p>';
                 
-                echo '<div id="aiutoma_operator_chat_area" class="aiutoma-chatbot-operator-area" style="display: ' . ($manual_mode ? 'block' : 'none') . ';">';
+                echo '<div id="aiutoma_operator_chat_area" class="aiutoma-chatbot-operator-area" style="' . esc_attr($manual_mode ? 'display: block;' : 'display: none;') . '">';
                 echo '<textarea id="aiutoma_operator_message" class="aiutoma-chatbot-operator-textarea" placeholder="' . esc_attr__('Type your message here...', 'aiutoma') . '"></textarea>';
                 echo '<br><button id="aiutoma_operator_send_btn" class="button button-primary" style="margin-top: 10px;" data-session="' . esc_attr($session_id) . '">' . esc_html__('Send Message', 'aiutoma') . '</button>';
                 echo '</div>';

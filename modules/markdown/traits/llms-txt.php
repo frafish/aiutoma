@@ -30,7 +30,7 @@ trait LlmsTxt {
             
             header('Content-Type: text/plain; charset=utf-8');
             
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text llms.txt response.
             echo $this->generate_llmstxt_content();
             exit;
         }

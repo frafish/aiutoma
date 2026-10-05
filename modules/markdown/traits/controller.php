@@ -74,8 +74,7 @@ trait Controller {
         if (post_password_required($post)) {
             status_header(403);
             header('Content-Type: text/plain; charset=UTF-8');
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-            echo 'Content is password protected.';
+            echo esc_html__('Content is password protected.', 'aiutoma');
             exit;
         }
         
@@ -92,7 +91,7 @@ trait Controller {
         header('X-Content-Type-Options: nosniff');
         header('X-Markdown-Tokens: ' . (int)(strlen($markdown) / 4));
         
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text markdown response.
         echo $markdown;
         exit;
     }

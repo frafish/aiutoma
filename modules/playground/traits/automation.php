@@ -201,11 +201,11 @@ trait Automation
                 echo esc_html(($task['pause_time'] ?? '2') . 's');
                 break;
             case 'last_run':
-                echo !empty($task['last_run']) ? esc_html(wp_date('Y-m-d H:i:s', $task['last_run'])) : esc_html__('Never', 'aiutoma');
+                echo esc_html(!empty($task['last_run']) ? wp_date('Y-m-d H:i:s', $task['last_run']) : __('Never', 'aiutoma'));
                 break;
             case 'next_run':
                 $next = $this->_get_next_run_time($task);
-                echo $next ? esc_html(wp_date('Y-m-d H:i:s', $next)) : '-';
+                echo esc_html($next ? wp_date('Y-m-d H:i:s', $next) : '-');
                 break;
             case 'count':
                 echo esc_html($task['run_count'] ?? '0');
@@ -215,7 +215,11 @@ trait Automation
                 if ($post->post_status !== 'publish') {
                     echo '<span style="color:gray">' . esc_html(ucfirst($post->post_status)) . '</span>';
                 } else {
-                    echo empty($task['active']) ? '<span style="color:red">Paused</span>' : '<span style="color:green">Active</span>';
+                    if (empty($task['active'])) {
+                        echo '<span style="color:red">' . esc_html__('Paused', 'aiutoma') . '</span>';
+                    } else {
+                        echo '<span style="color:green">' . esc_html__('Active', 'aiutoma') . '</span>';
+                    }
                 }
                 break;
             case 'actions':
@@ -275,8 +279,12 @@ trait Automation
 
     public function enqueue_automation_scripts($hook)
     {
-        $is_cpt_page = (isset($_GET['post_type']) && $_GET['post_type'] === 'aiutoma_task') ||
-            (isset($_GET['post']) && get_post_type($_GET['post']) === 'aiutoma_task');
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading screen context to conditionally enqueue admin scripts.
+        $screen_post_type = isset($_GET['post_type']) ? sanitize_key(wp_unslash($_GET['post_type'])) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading screen context to conditionally enqueue admin scripts.
+        $screen_post_id   = isset($_GET['post']) ? absint(wp_unslash($_GET['post'])) : 0;
+        $is_cpt_page      = ($screen_post_type === 'aiutoma_task') ||
+            ($screen_post_id > 0 && get_post_type($screen_post_id) === 'aiutoma_task');
         $is_valid_hook = in_array($hook, ['edit.php', 'post.php', 'post-new.php']);
 
         if (strpos($hook, 'aiutoma-automation') !== false || ($is_valid_hook && $is_cpt_page)) {
@@ -322,7 +330,7 @@ trait Automation
     public function aiutoma_automation_log_page_html()
     {
         if (!current_user_can('manage_options')) return;
-        // Handle log page
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading task ID parameter for view-only admin log page.
         $id = isset($_GET['id']) ? sanitize_text_field(wp_unslash($_GET['id'])) : '';
         $tasks = $this->_get_all_automated_tasks();
 

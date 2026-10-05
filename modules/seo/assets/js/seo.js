@@ -232,6 +232,137 @@ jQuery(document).ready(function($) {
             
             btn.prop('disabled', false).text(aiutomaSeoData.textOptimizeSelected);
         });
+
+        // ==========================================================================
+        // AI Crawlers & Robots.txt Panel Logic
+        // ==========================================================================
+        
+        // Quick Presets
+        $('.aiutoma-preset-btn').on('click', function() {
+            const preset = $(this).data('preset');
+            if (preset === 'protect-server') {
+                // Block all training scrapers, allow answer engines
+                $('#aiutoma-robots-ai-enabled').prop('checked', true);
+                $('.aiutoma-crawlers-table tr[data-type="training"] .aiutoma-crawler-select').val('block');
+                $('.aiutoma-crawlers-table tr[data-type="answer"] .aiutoma-crawler-select').val('allow');
+                $('#aiutoma-robots-crawl-delay').val('5');
+                $('#aiutoma-robots-block-endpoints').prop('checked', true);
+            } else if (preset === 'block-all') {
+                // Block everything
+                $('#aiutoma-robots-ai-enabled').prop('checked', true);
+                $('.aiutoma-crawler-select').val('block');
+            } else if (preset === 'allow-all') {
+                // Allow everything
+                $('#aiutoma-robots-ai-enabled').prop('checked', true);
+                $('.aiutoma-crawler-select').val('allow');
+            } else if (preset === 'reset-defaults') {
+                // Reset to default (disabled by default)
+                $('#aiutoma-robots-ai-enabled').prop('checked', false);
+                $('.aiutoma-crawlers-table tr').each(function() {
+                    const def = $(this).data('default');
+                    if (def) {
+                        $(this).find('.aiutoma-crawler-select').val(def);
+                    }
+                });
+                $('#aiutoma-robots-crawl-delay').val('0');
+                $('#aiutoma-robots-block-endpoints').prop('checked', true);
+                $('#aiutoma-robots-custom').val('');
+            }
+        });
+
+        // Save AI Robots Settings
+        $('.aiutoma-robots-save-btn').on('click', function() {
+            const btn = $(this);
+            const spinner = $('.aiutoma-robots-spinner');
+            const statusMsg = $('#aiutoma-robots-save-status');
+
+            btn.prop('disabled', true);
+            spinner.addClass('is-active');
+            statusMsg.hide();
+
+            const crawlersPayload = {};
+            $('.aiutoma-crawler-select').each(function() {
+                const slug = $(this).data('slug');
+                if (slug) {
+                    crawlersPayload[slug] = $(this).val();
+                }
+            });
+
+            const dataPayload = {
+                ai_enabled: $('#aiutoma-robots-ai-enabled').is(':checked'),
+                crawlers: crawlersPayload,
+                crawl_delay: $('#aiutoma-robots-crawl-delay').val(),
+                block_sensitive_endpoints: $('#aiutoma-robots-block-endpoints').is(':checked'),
+                custom_directives: $('#aiutoma-robots-custom').val()
+            };
+
+            $.ajax({
+                url: aiutomaSeoData.restRobotsSaveUrl,
+                method: 'POST',
+                headers: { 'X-WP-Nonce': aiutomaSeoData.nonce },
+                contentType: 'application/json',
+                data: JSON.stringify(dataPayload),
+                success: function(res) {
+                    btn.prop('disabled', false);
+                    spinner.removeClass('is-active');
+                    if (res.success) {
+                        statusMsg.text(aiutomaSeoData.textSettingsSaved || 'Settings saved!').show();
+                        if (res.preview) {
+                            $('#aiutoma-robots-preview code').text(res.preview);
+                        }
+                        setTimeout(function() { statusMsg.fadeOut(); }, 4000);
+                    }
+                },
+                error: function(err) {
+                    btn.prop('disabled', false);
+                    spinner.removeClass('is-active');
+                    alert('Error: ' + (err.responseJSON ? err.responseJSON.message : err.statusText));
+                }
+            });
+        });
+
+        // Refresh Preview
+        $('#aiutoma-refresh-robots-preview').on('click', function() {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            $.ajax({
+                url: aiutomaSeoData.restRobotsPreviewUrl,
+                method: 'GET',
+                headers: { 'X-WP-Nonce': aiutomaSeoData.nonce },
+                success: function(res) {
+                    btn.prop('disabled', false);
+                    if (res.success && res.preview) {
+                        $('#aiutoma-robots-preview code').text(res.preview);
+                    }
+                },
+                error: function() {
+                    btn.prop('disabled', false);
+                }
+            });
+        });
+
+        // Copy Preview
+        $('#aiutoma-copy-robots-preview').on('click', function() {
+            const btn = $(this);
+            const text = $('#aiutoma-robots-preview code').text();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    const orig = btn.text();
+                    btn.text('✅ ' + (aiutomaSeoData.textCopied || 'Copied!'));
+                    setTimeout(function() { btn.text(orig); }, 2000);
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                const orig = btn.text();
+                btn.text('✅ ' + (aiutomaSeoData.textCopied || 'Copied!'));
+                setTimeout(function() { btn.text(orig); }, 2000);
+            }
+        });
     }
 
     // Media Library Hook

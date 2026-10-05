@@ -98,7 +98,7 @@ trait RAG_Processors {
         if (empty($types_to_sync)) return;
         
         $types_placeholders = implode(', ', array_fill(0, count($types_to_sync), '%s'));
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
         $query = $wpdb->prepare(
             "SELECT ID, post_modified_gmt 
             FROM {$wpdb->posts} 
@@ -137,7 +137,7 @@ trait RAG_Processors {
                 $del_stmt->execute([':post_id' => $post_id, ':post_type' => $wp_post->post_type]);
             }
 
-            echo "Length: " . esc_html((string)strlen($content)) . "\n"; $this->insert_chunks($post_id, $wp_post->post_type, $wp_post->post_title, get_permalink($post_id), $content, $content_hash);
+            $this->insert_chunks($post_id, $wp_post->post_type, $wp_post->post_title, get_permalink($post_id), $content, $content_hash);
             
             $processed_count++;
             $updated_count++;
@@ -171,7 +171,7 @@ trait RAG_Processors {
             }
 
             $this->log("Updating Term ID: {$term->term_id} - {$term->name} ({$term->taxonomy})");
-            echo "Length: " . esc_html((string)strlen($content)) . "\n"; $this->insert_chunks($term->term_id, $type, 'Taxonomy: ' . $term->name, get_term_link($term), $content, $content_hash);
+            $this->insert_chunks($term->term_id, $type, 'Taxonomy: ' . $term->name, get_term_link($term), $content, $content_hash);
             $updated_count++;
         }
         $this->log("Processed {$updated_count} taxonomies this run.");
@@ -238,7 +238,7 @@ trait RAG_Processors {
         }
         
         $this->log("Updating Global Site Settings Context");
-        echo "Length: " . esc_html((string)strlen($content)) . "\n"; $this->insert_chunks(1, 'global_setting', 'Global Site Configuration', home_url(), $content, $content_hash);
+        $this->insert_chunks(1, 'global_setting', 'Global Site Configuration', home_url(), $content, $content_hash);
     }
     
     private function process_plugins_apis() {
@@ -393,7 +393,7 @@ trait RAG_Processors {
             'text/csv'
         ];
         $mime_placeholders = implode(', ', array_fill(0, count($supported_mimes), '%s'));
-        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
         $query = $wpdb->prepare(
             "SELECT ID, post_modified_gmt 
             FROM {$wpdb->posts} 
@@ -445,7 +445,6 @@ trait RAG_Processors {
             }
 
             if ($content !== "MEDIA_EXTRACTION_FAILED") {
-                echo "Length: " . esc_html((string)strlen($content)) . "\n"; 
                 $this->insert_chunks($post_id, 'attachment', $wp_post->post_title, wp_get_attachment_url($post_id), $content, $content_hash);
             } else {
                 // To avoid retrying failed extraction over and over, insert a dummy record

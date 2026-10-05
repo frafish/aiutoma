@@ -77,7 +77,7 @@ trait Ui
             <?php if ($is_ai_configured): ?>
 
                 <div class="card aiutoma-playground-card">
-                    <div id="aiutoma-playground-chat-wrapper" class="<?php echo isset($_GET['session_id']) ? 'has-content' : ''; ?>">
+                    <div id="aiutoma-playground-chat-wrapper" class="<?php echo esc_attr(isset($_GET['session_id']) ? 'has-content' : ''); ?>">
                         <?php
                         $chat_html = '';
                         $data = [];
@@ -435,7 +435,7 @@ trait Ui
                                 <div id="aiutoma-backups-container" class="aiutoma-backups-container">
                                     <p class="aiutoma-backups-summary"><?php
                                                                     /* translators: %d: Number of backups */
-                                                                    echo sprintf(esc_html__('There are %d available backups', 'aiutoma'), count($backup_actions));
+                                                                    echo esc_html(sprintf(esc_html__('There are %d available backups', 'aiutoma'), count($backup_actions)));
                                                                     ?></p>
                                     <ul class="aiutoma-backups-list">
                                         <?php foreach ($backup_actions as $action): ?>

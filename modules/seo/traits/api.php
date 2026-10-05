@@ -24,6 +24,53 @@ trait Api {
         return new \WP_REST_Response(['success' => true], 200);
     }
 
+    public function api_save_robots_settings(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: $request->get_params();
+
+        if (isset($params['ai_enabled'])) {
+            update_option('aiutoma_robots_ai_enabled', !empty($params['ai_enabled']) ? '1' : '0');
+        }
+
+        if (isset($params['crawlers']) && is_array($params['crawlers'])) {
+            $sanitized_crawlers = [];
+            $catalog = self::get_crawlers_catalog();
+            foreach ($params['crawlers'] as $slug => $state) {
+                if (isset($catalog[$slug])) {
+                    $sanitized_crawlers[$slug] = in_array($state, ['allow', 'block'], true) ? $state : $catalog[$slug]['default'];
+                }
+            }
+            update_option('aiutoma_robots_crawlers', $sanitized_crawlers);
+        }
+
+        if (isset($params['crawl_delay'])) {
+            update_option('aiutoma_robots_crawl_delay', absint($params['crawl_delay']));
+        }
+
+        if (isset($params['block_sensitive_endpoints'])) {
+            update_option('aiutoma_robots_block_sensitive_endpoints', !empty($params['block_sensitive_endpoints']) ? '1' : '0');
+        }
+
+        if (isset($params['custom_directives'])) {
+            update_option('aiutoma_robots_custom_directives', sanitize_textarea_field($params['custom_directives']));
+        }
+
+        $preview = $this->get_simulated_robots_txt();
+
+        return new \WP_REST_Response([
+            'success' => true,
+            'message' => __('Robots.txt AI settings saved successfully.', 'aiutoma'),
+            'preview' => $preview,
+        ], 200);
+    }
+
+    public function api_get_robots_preview(\WP_REST_Request $request) {
+        $preview = $this->get_simulated_robots_txt();
+        return new \WP_REST_Response([
+            'success' => true,
+            'preview' => $preview,
+        ], 200);
+    }
+
     public function api_optimize_media_seo(\WP_REST_Request $request) {
         $attachment_id = intval($request->get_param('attachment_id'));
         $model = sanitize_text_field($request->get_param('model'));

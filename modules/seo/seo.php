@@ -6,6 +6,7 @@ class Seo {
     use Traits\Hooks;
     use Traits\Api;
     use Traits\Settings;
+    use Traits\Robots;
 
     public function __construct() {
         if (method_exists($this, 'register_seo_hooks')) {

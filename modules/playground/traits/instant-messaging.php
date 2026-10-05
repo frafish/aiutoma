@@ -7,7 +7,8 @@ trait InstantMessaging {
     public function register_im_hooks() {
         add_action('admin_menu', [$this, 'add_im_menu']);
         add_action('rest_api_init', [$this, 'register_im_routes']);
-        add_action('admin_init', [$this, 'register_telegram_webhook_action']);
+        add_action('admin_post_aiutoma_register_telegram_webhook', [$this, 'register_telegram_webhook_action']);
+        add_action('admin_post_aiutoma_clear_im_history', [$this, 'clear_im_history_action']);
     }
 
     public function add_im_menu() {
@@ -22,54 +23,104 @@ trait InstantMessaging {
     }
     
     public function register_telegram_webhook_action() {
-        if (isset($_GET['aiutoma_telegram_register_webhook']) && current_user_can('manage_options')) {
-            $bot_token = get_option('aiutoma_tg_bot_token');
-            $status = 'error';
-            $message = 'Bot token is empty.';
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'aiutoma'));
+        }
+        check_admin_referer('aiutoma_register_telegram_webhook');
+
+        $bot_token = get_option('aiutoma_tg_bot_token');
+        $status = 'error';
+        $message = __('Bot token is empty.', 'aiutoma');
+        
+        if (!empty($bot_token)) {
+            $webhook_url = rest_url('aiutoma/v1/telegram-webhook');
+            $secret_token = get_option('aiutoma_tg_webhook_secret', '');
+            if (empty($secret_token)) {
+                $secret_token = wp_generate_password(32, false, false);
+                update_option('aiutoma_tg_webhook_secret', $secret_token);
+            }
+            $url = "https://api.telegram.org/bot{$bot_token}/setWebhook?url=" . urlencode($webhook_url) . "&secret_token=" . urlencode($secret_token);
+            $response = wp_remote_get($url);
             
-            if (!empty($bot_token)) {
-                $webhook_url = rest_url('aiutoma/v1/telegram-webhook');
-                $secret_token = get_option('aiutoma_tg_webhook_secret', '');
-                if (empty($secret_token)) {
-                    $secret_token = wp_generate_password(32, false, false);
-                    update_option('aiutoma_tg_webhook_secret', $secret_token);
-                }
-                $url = "https://api.telegram.org/bot{$bot_token}/setWebhook?url=" . urlencode($webhook_url) . "&secret_token=" . urlencode($secret_token);
-                $response = wp_remote_get($url);
-                
-                if (is_wp_error($response)) {
-                    $message = $response->get_error_message();
+            if (is_wp_error($response)) {
+                $message = $response->get_error_message();
+            } else {
+                $body = wp_remote_retrieve_body($response);
+                $json = json_decode($body, true);
+                if (isset($json['ok']) && $json['ok'] === true) {
+                    $status = 'success';
+                    $message = __('Webhook registered successfully.', 'aiutoma');
                 } else {
-                    $body = wp_remote_retrieve_body($response);
-                    $json = json_decode($body, true);
-                    if (isset($json['ok']) && $json['ok'] === true) {
-                        $status = 'success';
-                        $message = 'Webhook registered successfully.';
-                    } else {
-                        $message = isset($json['description']) ? $json['description'] : 'Unknown Telegram API error.';
-                    }
+                    $message = isset($json['description']) ? $json['description'] : __('Unknown Telegram API error.', 'aiutoma');
                 }
             }
-            wp_redirect(admin_url('admin.php?page=aiutoma-im&webhook_registered=' . $status . '&webhook_msg=' . urlencode($message)));
-            exit;
         }
+        set_transient('aiutoma_im_admin_notice', ['status' => $status, 'message' => $message], 45);
+        wp_safe_redirect(admin_url('admin.php?page=aiutoma-im'));
+        exit;
+    }
+
+    public function clear_im_history_action() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'aiutoma'));
+        }
+        check_admin_referer('aiutoma_clear_im_history');
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce verified above via check_admin_referer.
+        $platform_to_clear = isset($_GET['platform']) ? sanitize_key(wp_unslash($_GET['platform'])) : '';
+        $conv_id = '';
+        if ($platform_to_clear === 'whatsapp') {
+            $t_num = get_option('aiutoma_wa_target_number');
+            if (!empty($t_num)) {
+                $conv_id = 'whatsapp_' . preg_replace('/[^0-9]/', '', $t_num);
+            }
+        } elseif ($platform_to_clear === 'telegram') {
+            $c_id = get_option('aiutoma_tg_allowed_chat_id');
+            if (!empty($c_id)) {
+                $conv_id = 'telegram_' . $c_id;
+            }
+        }
+
+        if (!empty($conv_id)) {
+            delete_transient($conv_id);
+            $file_path = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/logs/sessions/' . sanitize_file_name($conv_id) . '.json';
+            if (file_exists($file_path)) {
+                wp_delete_file($file_path);
+            }
+            /* translators: %s: Platform name */
+            $notice_msg = sprintf(__('AI Memory wiped for %s. You can now start fresh!', 'aiutoma'), ucfirst($platform_to_clear));
+            set_transient('aiutoma_im_admin_notice', ['status' => 'success', 'message' => $notice_msg], 45);
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=aiutoma-im'));
+        exit;
     }
 
     public function aiutoma_im_page_html() {
         if (!current_user_can('manage_options')) return;
 
         // WhatsApp Saving
-        if (isset($_POST['aiutoma_wa_settings_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['aiutoma_wa_settings_nonce'])), 'aiutoma_wa_settings_action')) {
-            update_option('aiutoma_wa_phone_number_id', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_phone_number_id'])));
-            update_option('aiutoma_wa_access_token', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_access_token'])));
-            update_option('aiutoma_wa_target_number', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_target_number'])));
-            update_option('aiutoma_wa_app_secret', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_app_secret'])));
+        if (isset($_POST['aiutoma_wa_settings_nonce'])) {
+            check_admin_referer('aiutoma_wa_settings_action', 'aiutoma_wa_settings_nonce');
+            if (isset($_POST['aiutoma_wa_phone_number_id'])) {
+                update_option('aiutoma_wa_phone_number_id', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_phone_number_id'])));
+            }
+            if (isset($_POST['aiutoma_wa_access_token'])) {
+                update_option('aiutoma_wa_access_token', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_access_token'])));
+            }
+            if (isset($_POST['aiutoma_wa_target_number'])) {
+                update_option('aiutoma_wa_target_number', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_target_number'])));
+            }
+            if (isset($_POST['aiutoma_wa_app_secret'])) {
+                update_option('aiutoma_wa_app_secret', sanitize_text_field(wp_unslash($_POST['aiutoma_wa_app_secret'])));
+            }
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('WhatsApp Settings saved.', 'aiutoma') . '</p></div>';
         }
 
         // Telegram Saving
-        if (isset($_POST['aiutoma_tg_settings_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['aiutoma_tg_settings_nonce'])), 'aiutoma_tg_settings_action')) {
-            $new_token = sanitize_text_field(wp_unslash($_POST['aiutoma_tg_bot_token']));
+        if (isset($_POST['aiutoma_tg_settings_nonce'])) {
+            check_admin_referer('aiutoma_tg_settings_action', 'aiutoma_tg_settings_nonce');
+            $new_token = isset($_POST['aiutoma_tg_bot_token']) ? sanitize_text_field(wp_unslash($_POST['aiutoma_tg_bot_token'])) : '';
             
             if (!empty($new_token) && !preg_match('/^[0-9]+:[a-zA-Z0-9_-]+$/', $new_token)) {
                 echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__('Error: Invalid Telegram Bot Token format. It must look like: 123456789:ABCdefGHIjkl...', 'aiutoma') . '</p></div>';
@@ -97,56 +148,37 @@ trait InstantMessaging {
                 
                 if ($is_valid) {
                     update_option('aiutoma_tg_bot_token', $new_token);
-                    update_option('aiutoma_tg_allowed_chat_id', sanitize_text_field(wp_unslash($_POST['aiutoma_tg_allowed_chat_id'])));
+                    if (isset($_POST['aiutoma_tg_allowed_chat_id'])) {
+                        update_option('aiutoma_tg_allowed_chat_id', sanitize_text_field(wp_unslash($_POST['aiutoma_tg_allowed_chat_id'])));
+                    }
                     echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Telegram Settings saved.', 'aiutoma') . '</p></div>';
                 }
             }
         }
         
         // Global Settings Saving
-        if (isset($_POST['aiutoma_im_global_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['aiutoma_im_global_nonce'])), 'aiutoma_im_global_action')) {
-            update_option('aiutoma_im_model', sanitize_text_field(wp_unslash($_POST['aiutoma_im_model'])));
-            update_option('aiutoma_im_system_prompt', sanitize_textarea_field(wp_unslash($_POST['aiutoma_im_system_prompt'])));
-            update_option('aiutoma_im_acting_user', intval(wp_unslash($_POST['aiutoma_im_acting_user'])));
+        if (isset($_POST['aiutoma_im_global_nonce'])) {
+            check_admin_referer('aiutoma_im_global_action', 'aiutoma_im_global_nonce');
+            if (isset($_POST['aiutoma_im_model'])) {
+                update_option('aiutoma_im_model', sanitize_text_field(wp_unslash($_POST['aiutoma_im_model'])));
+            }
+            if (isset($_POST['aiutoma_im_system_prompt'])) {
+                update_option('aiutoma_im_system_prompt', sanitize_textarea_field(wp_unslash($_POST['aiutoma_im_system_prompt'])));
+            }
+            if (isset($_POST['aiutoma_im_acting_user'])) {
+                update_option('aiutoma_im_acting_user', intval(wp_unslash($_POST['aiutoma_im_acting_user'])));
+            }
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Global Settings saved.', 'aiutoma') . '</p></div>';
         }
 
-        if (isset($_GET['webhook_registered'])) {
-            $status = sanitize_text_field($_GET['webhook_registered']);
-            $msg = isset($_GET['webhook_msg']) ? sanitize_text_field(wp_unslash($_GET['webhook_msg'])) : '';
-            if ($status === 'success') {
-                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($msg) . '</p></div>';
-            } else if ($status === 'error') {
-                echo '<div class="notice notice-error is-dismissible"><p><strong>' . esc_html__('Webhook Error:', 'aiutoma') . '</strong> ' . esc_html($msg) . '</p></div>';
-            } else {
-                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Telegram Webhook registration requested. Check Bot logs to confirm.', 'aiutoma') . '</p></div>';
-            }
-        }
-
-        if (isset($_GET['aiutoma_clear_history']) && isset($_GET['_wpnonce']) && wp_verify_nonce(sanitize_text_field($_GET['_wpnonce']), 'aiutoma_clear_im_history')) {
-            $platform_to_clear = sanitize_text_field($_GET['aiutoma_clear_history']);
-            $conv_id = '';
-            if ($platform_to_clear === 'whatsapp') {
-                $t_num = get_option('aiutoma_wa_target_number');
-                if (!empty($t_num)) {
-                    $conv_id = 'whatsapp_' . preg_replace('/[^0-9]/', '', $t_num);
-                }
-            } else if ($platform_to_clear === 'telegram') {
-                $c_id = get_option('aiutoma_tg_allowed_chat_id');
-                if (!empty($c_id)) {
-                    $conv_id = 'telegram_' . $c_id;
-                }
-            }
-            if (!empty($conv_id)) {
-                delete_transient($conv_id);
-                $upload_dir = wp_upload_dir();
-                $file_path = \Aiutoma\Modules\Ai\Ai::get_storage_dir() . '/logs/sessions/' . sanitize_file_name($conv_id) . '.json';
-                if (file_exists($file_path)) {
-                    wp_delete_file($file_path);
-                }
-                /* translators: %s: Platform name */
-                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(__('AI Memory wiped for %s. You can now start fresh!', 'aiutoma'), ucfirst($platform_to_clear))) . '</p></div>';
-            }
+        // Display transient notice if available
+        $im_notice = get_transient('aiutoma_im_admin_notice');
+        if (!empty($im_notice) && is_array($im_notice)) {
+            delete_transient('aiutoma_im_admin_notice');
+            $notice_status = $im_notice['status'] ?? 'info';
+            $notice_msg = $im_notice['message'] ?? '';
+            $notice_class = ($notice_status === 'success') ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($notice_class) . ' is-dismissible"><p>' . esc_html($notice_msg) . '</p></div>';
         }
 
         // Global Options
@@ -286,7 +318,7 @@ trait InstantMessaging {
                             </table>
                             <?php submit_button(__('Save WhatsApp Settings', 'aiutoma'), 'primary', 'submit', false); ?>
                             <?php if (!empty($target_number)): ?>
-                                <a href="<?php echo esc_url(admin_url('admin.php?page=aiutoma-im&aiutoma_clear_history=whatsapp&_wpnonce=' . wp_create_nonce('aiutoma_clear_im_history'))); ?>" class="button button-secondary" style="margin-left: 10px;" onclick="return confirm('<?php esc_attr_e('Are you sure you want to completely wipe the AI memory for this WhatsApp conversation?', 'aiutoma'); ?>');"><?php esc_html_e('Clear AI Memory (Reset)', 'aiutoma'); ?></a>
+                                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=aiutoma_clear_im_history&platform=whatsapp'), 'aiutoma_clear_im_history')); ?>" class="button button-secondary" style="margin-left: 10px;" onclick="return confirm('<?php esc_attr_e('Are you sure you want to completely wipe the AI memory for this WhatsApp conversation?', 'aiutoma'); ?>');"><?php esc_html_e('Clear AI Memory (Reset)', 'aiutoma'); ?></a>
                             <?php endif; ?>
                         </form>
                         
@@ -359,7 +391,7 @@ trait InstantMessaging {
                                         <input type="text" value="<?php echo esc_url(rest_url('aiutoma/v1/telegram-webhook')); ?>" class="regular-text" style="width: 100%;" readonly />
                                         <?php if (!empty($tg_bot_token)) : ?>
                                             <p class="description" style="margin-top: 10px;">
-                                                <a href="<?php echo esc_url(admin_url('admin.php?page=aiutoma-im&aiutoma_telegram_register_webhook=1')); ?>" class="button button-secondary"><?php esc_html_e('Register Webhook via API', 'aiutoma'); ?></a>
+                                                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=aiutoma_register_telegram_webhook'), 'aiutoma_register_telegram_webhook')); ?>" class="button button-secondary"><?php esc_html_e('Register Webhook via API', 'aiutoma'); ?></a>
                                             </p>
                                         <?php endif; ?>
                                     </td>
@@ -367,7 +399,7 @@ trait InstantMessaging {
                             </table>
                             <?php submit_button(__('Save Telegram Settings', 'aiutoma'), 'primary', 'submit', false); ?>
                             <?php if (!empty($tg_allowed_chat_id)): ?>
-                                <a href="<?php echo esc_url(admin_url('admin.php?page=aiutoma-im&aiutoma_clear_history=telegram&_wpnonce=' . wp_create_nonce('aiutoma_clear_im_history'))); ?>" class="button button-secondary" style="margin-left: 10px;" onclick="return confirm('<?php esc_attr_e('Are you sure you want to completely wipe the AI memory for this Telegram conversation?', 'aiutoma'); ?>');"><?php esc_html_e('Clear AI Memory (Reset)', 'aiutoma'); ?></a>
+                                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=aiutoma_clear_im_history&platform=telegram'), 'aiutoma_clear_im_history')); ?>" class="button button-secondary" style="margin-left: 10px;" onclick="return confirm('<?php esc_attr_e('Are you sure you want to completely wipe the AI memory for this Telegram conversation?', 'aiutoma'); ?>');"><?php esc_html_e('Clear AI Memory (Reset)', 'aiutoma'); ?></a>
                             <?php endif; ?>
                         </form>
                         
@@ -425,28 +457,19 @@ trait InstantMessaging {
     // --- WhatsApp Methods ---
     
     public function whatsapp_webhook_verify(\WP_REST_Request $request) {
-        $mode = $request->get_param('hub_mode');
-        $token = $request->get_param('hub_verify_token');
-        $challenge = $request->get_param('hub_challenge');
+        $mode = (string) $request->get_param('hub_mode');
+        $token = (string) $request->get_param('hub_verify_token');
+        $challenge = (string) $request->get_param('hub_challenge');
         
-        $verify_token = get_option('aiutoma_wa_verify_token', '');
+        $verify_token = (string) get_option('aiutoma_wa_verify_token', '');
         
         // Fallback for backwards compatibility with existing setups
         if (empty($verify_token)) {
-            $verify_token = get_option('aiutoma_mcp_token', '');
+            $verify_token = (string) get_option('aiutoma_mcp_token', '');
         }
 
-        if (empty($token) && isset($_GET['hub_verify_token'])) {
-            $token = sanitize_text_field(wp_unslash($_GET['hub_verify_token']));
-        }
-        if (empty($mode) && isset($_GET['hub_mode'])) {
-            $mode = sanitize_text_field(wp_unslash($_GET['hub_mode']));
-        }
-        if (empty($challenge) && isset($_GET['hub_challenge'])) {
-            $challenge = sanitize_text_field(wp_unslash($_GET['hub_challenge']));
-        }
-
-        if ($mode === 'subscribe' && $token === $verify_token) {
+        if ($mode === 'subscribe' && !empty($verify_token) && hash_equals($verify_token, $token)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text numeric/alphanumeric challenge token required by Meta Webhooks.
             echo esc_html($challenge);
             exit;
         }
@@ -496,14 +519,14 @@ trait InstantMessaging {
                 if (function_exists('fastcgi_finish_request')) {
                     status_header(200);
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => true]);
+                    echo wp_json_encode(['success' => true]);
                     fastcgi_finish_request();
                 } else {
                     status_header(200);
                     header('Connection: close');
                     header('Content-Type: application/json');
                     ob_start();
-                    echo json_encode(['success' => true]);
+                    echo wp_json_encode(['success' => true]);
                     $size = ob_get_length();
                     header("Content-Length: {$size}");
                     ob_end_flush();
@@ -564,14 +587,14 @@ trait InstantMessaging {
                 if (function_exists('fastcgi_finish_request')) {
                     status_header(200);
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => true]);
+                    echo wp_json_encode(['success' => true]);
                     fastcgi_finish_request();
                 } else {
                     status_header(200);
                     header('Connection: close');
                     header('Content-Type: application/json');
                     ob_start();
-                    echo json_encode(['success' => true]);
+                    echo wp_json_encode(['success' => true]);
                     $size = ob_get_length();
                     header("Content-Length: {$size}");
                     ob_end_flush();
@@ -1009,8 +1032,10 @@ trait InstantMessaging {
         
         $response = wp_remote_post($api_url . $endpoint, $args);
         
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) != 200) {
+        if (defined('WP_DEBUG') && WP_DEBUG && (is_wp_error($response) || wp_remote_retrieve_response_code($response) != 200)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
             error_log('Telegram API Error: ' . print_r($response, true));
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log, WordPress.PHP.DevelopmentFunctions.error_log_print_r
             error_log('Telegram Payload: ' . print_r($body, true));
         }
         

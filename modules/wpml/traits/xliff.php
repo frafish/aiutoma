@@ -384,11 +384,11 @@ trait Xliff
             if (function_exists('wpml_tm_save_data')) {
                 kses_remove_filters();
                 
-                // Print job_data structure to log for debugging
-                $this->log_error("Aiutoma Job Data before save: " . print_r($job_data, true));
+                // Log job_data structure for debugging
+                $this->log_error("Aiutoma Job Data before save: " . wp_json_encode($job_data));
 
                 $result = wpml_tm_save_data($job_data, false);
-                $this->log_error("Aiutoma Job Save Result: " . var_export($result, true));
+                $this->log_error("Aiutoma Job Save Result: " . wp_json_encode($result));
                 kses_init();
                 if (!$result) {
                     return new \WP_REST_Response(['success' => false, 'message' => 'WPML failed to save translation data.'], 500);

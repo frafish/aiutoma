@@ -244,6 +244,7 @@ class Mcp
             );
         } catch (\Throwable $e) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log('[Aiutoma MCP] Failed to register server with MCP Adapter: ' . $e->getMessage());
             }
         }
@@ -270,14 +271,20 @@ class Mcp
             'manage-plugins',
             'manage-themes',
             'manage-users',
+            'manage-options',
+            'manage-system',
+            'manage-debug',
+            'flush_rewrite_rules',
             'read-file',
             'list-directory',
-            'manage-options',
             'run-wp-cli',
             'execute_php',
             'execute-php',
             'db-query',
             'modify-file',
+            'patch-file',
+            'grep-files',
+            'inspect-hooks',
             'scaffold-theme',
         ];
 
@@ -444,10 +451,13 @@ class Mcp
                                 'properties' => [
                                     'ability_name' => [
                                         'type' => 'string',
-                                        'description' => 'The name of the ability to get the schema for (e.g. aiutoma/create-post).'
+                                        'description' => 'The name of the ability to get the schema for (e.g. aiutoma/create-post or aiutoma-manage-posts). Can also be passed as \'ability\' or \'name\'.'
+                                    ],
+                                    'ability' => [
+                                        'type' => 'string',
+                                        'description' => 'Alias for ability_name.'
                                     ]
-                                ],
-                                'required' => ['ability_name']
+                                ]
                             ],
                             'annotations' => [
                                 'readonly' => true,
@@ -467,14 +477,21 @@ class Mcp
                                 'properties' => [
                                     'ability_name' => [
                                         'type' => 'string',
-                                        'description' => 'The name of the ability to execute.'
+                                        'description' => 'The name of the ability to execute (e.g. aiutoma/create-post or aiutoma-manage-posts). Can also be passed as \'ability\' or \'name\'.'
+                                    ],
+                                    'ability' => [
+                                        'type' => 'string',
+                                        'description' => 'Alias for ability_name.'
                                     ],
                                     'parameters' => [
                                         'type' => 'object',
-                                        'description' => 'The parameters required by the ability schema.'
+                                        'description' => 'The parameters required by the ability schema. Can also be passed as \'args\' or \'arguments\'.'
+                                    ],
+                                    'args' => [
+                                        'type' => 'object',
+                                        'description' => 'Alias for parameters.'
                                     ]
-                                ],
-                                'required' => ['ability_name', 'parameters']
+                                ]
                             ],
                             'annotations' => [
                                 'readonly' => false,
@@ -512,7 +529,64 @@ class Mcp
                         ];
                     }
 
-                    $response['result'] = ['tools' => $tools];
+                    $tools_result = $tools;
+
+                    // Optional search/filter by keyword
+                    $search_filter = isset($params['search']) ? trim((string)$params['search']) : (isset($params['filter']) ? trim((string)$params['filter']) : '');
+                    if ($search_filter !== '') {
+                        $search_lower = strtolower($search_filter);
+                        $tools_result = array_values(array_filter($tools_result, function($t) use ($search_lower) {
+                            $name = strtolower($t['name'] ?? '');
+                            $title = strtolower($t['title'] ?? '');
+                            $desc = strtolower($t['description'] ?? '');
+                            return strpos($name, $search_lower) !== false 
+                                || strpos($title, $search_lower) !== false 
+                                || strpos($desc, $search_lower) !== false;
+                        }));
+                    }
+
+                    // Optional filter by category or prefix (e.g. 'gutenberg', 'scf', 'aiutoma', 'rank-math')
+                    $category_filter = isset($params['category']) ? trim((string)$params['category']) : (isset($params['prefix']) ? trim((string)$params['prefix']) : '');
+                    if ($category_filter !== '') {
+                        $cat_clean = strtolower(rtrim($category_filter, '-/_'));
+                        $cat_prefix = $cat_clean . '-';
+                        $tools_result = array_values(array_filter($tools_result, function($t) use ($cat_clean, $cat_prefix) {
+                            $name = strtolower($t['name'] ?? '');
+                            return strpos($name, $cat_prefix) === 0 || $name === $cat_clean;
+                        }));
+                    }
+
+                    // Optional compact/summary mode (strips verbose schemas to save tokens)
+                    if (!empty($params['compact']) || !empty($params['summary'])) {
+                        $tools_result = array_map(function($t) {
+                            return [
+                                'name' => $t['name'],
+                                'title' => $t['title'] ?? $t['name'],
+                                'description' => $t['description'] ?? '',
+                                'inputSchema' => [
+                                    'type' => 'object',
+                                    'properties' => (object)[]
+                                ],
+                                'annotations' => $t['annotations'] ?? []
+                            ];
+                        }, $tools_result);
+                    }
+
+                    // Optional pagination via cursor or limit
+                    $limit = isset($params['limit']) ? max(1, intval($params['limit'])) : 0;
+                    $cursor = isset($params['cursor']) ? max(0, intval($params['cursor'])) : 0;
+
+                    if ($limit > 0) {
+                        $total_matched = count($tools_result);
+                        $page_tools = array_slice($tools_result, $cursor, $limit);
+                        $result_payload = ['tools' => $page_tools];
+                        if ($cursor + $limit < $total_matched) {
+                            $result_payload['nextCursor'] = (string)($cursor + $limit);
+                        }
+                        $response['result'] = $result_payload;
+                    } else {
+                        $response['result'] = ['tools' => $tools_result];
+                    }
                 } elseif ($method === 'tools/call') {
                     $name = isset($params['name']) ? $params['name'] : '';
                     $args = isset($params['arguments']) ? $params['arguments'] : [];
@@ -552,6 +626,10 @@ class Mcp
                         if (function_exists('wp_has_ability') && wp_has_ability($candidate)) {
                             return [wp_get_ability($candidate), $candidate];
                         }
+                        $candidate_dash = preg_replace('/-/', '/', $tool_input_name, 1);
+                        if (function_exists('wp_has_ability') && wp_has_ability($candidate_dash)) {
+                            return [wp_get_ability($candidate_dash), $candidate_dash];
+                        }
                         return [null, $tool_input_name];
                     };
 
@@ -577,14 +655,14 @@ class Mcp
                             'content' => [
                                 [
                                     'type' => 'text',
-                                    'text' => wp_json_encode(['abilities' => $list])
+                                    'text' => wp_json_encode(['abilities' => $list], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                                 ]
                             ]
                         ];
                         $this->write_file_log($request, $agent_name, 'Discover Abilities', $result_data, $args);
                         $response['result'] = $result_data;
                     } elseif ($name === 'aiutoma_get_ability_schema') {
-                        $input_ability_name = isset($args['ability_name']) ? (string)$args['ability_name'] : '';
+                        $input_ability_name = isset($args['ability_name']) ? (string)$args['ability_name'] : (isset($args['ability']) ? (string)$args['ability'] : (isset($args['name']) ? (string)$args['name'] : (isset($args['tool_name']) ? (string)$args['tool_name'] : (isset($args['tool']) ? (string)$args['tool'] : ''))));
                         list($ability, $ability_name) = $resolve_ability($input_ability_name);
                         
                         if ($ability) {
@@ -607,7 +685,7 @@ class Mcp
                                 'content' => [
                                     [
                                         'type' => 'text',
-                                        'text' => wp_json_encode($schema_data)
+                                        'text' => wp_json_encode($schema_data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                                     ]
                                 ]
                             ];
@@ -617,9 +695,9 @@ class Mcp
                             throw new \Exception("Ability not found: {$input_ability_name}");
                         }
                     } elseif ($name === 'aiutoma_execute_ability') {
-                        $input_ability_name = isset($args['ability_name']) ? (string)$args['ability_name'] : '';
+                        $input_ability_name = isset($args['ability_name']) ? (string)$args['ability_name'] : (isset($args['ability']) ? (string)$args['ability'] : (isset($args['name']) ? (string)$args['name'] : (isset($args['tool_name']) ? (string)$args['tool_name'] : (isset($args['tool']) ? (string)$args['tool'] : ''))));
                         list($ability, $ability_name) = $resolve_ability($input_ability_name);
-                        $ability_params = isset($args['parameters']) ? $args['parameters'] : [];
+                        $ability_params = isset($args['parameters']) ? $args['parameters'] : (isset($args['args']) ? $args['args'] : (isset($args['arguments']) ? $args['arguments'] : (isset($args['params']) ? $args['params'] : [])));
                         
                         if ($ability) {
                             if (!self::is_ability_allowed_for_mcp($ability_name)) {
@@ -639,7 +717,7 @@ class Mcp
                                 'content' => [
                                     [
                                         'type' => 'text',
-                                        'text' => is_string($result) ? $result : wp_json_encode($result)
+                                        'text' => is_string($result) ? $result : wp_json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                                     ]
                                 ]
                             ];
@@ -673,7 +751,7 @@ class Mcp
                                 'content' => [
                                     [
                                         'type' => 'text',
-                                        'text' => is_string($result) ? $result : wp_json_encode($result)
+                                        'text' => is_string($result) ? $result : wp_json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                                     ]
                                 ]
                             ];
@@ -942,14 +1020,10 @@ class Mcp
             ],
         ];
 
-        $json_content = wp_json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
         nocache_headers();
         header('Content-Type: application/json; charset=utf-8');
         header('Content-Disposition: attachment; filename="mcp.json"');
-        header('Content-Length: ' . strlen($json_content));
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        echo $json_content;
+        echo wp_json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -1093,8 +1167,8 @@ class Mcp
 
     public function aiutoma_mcp_page_html()
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aiutoma_mcp_acting_user']) && check_admin_referer('aiutoma_mcp_save_settings')) {
-            update_option('aiutoma_mcp_acting_user', intval($_POST['aiutoma_mcp_acting_user']));
+        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['aiutoma_mcp_acting_user']) && check_admin_referer('aiutoma_mcp_save_settings')) {
+            update_option('aiutoma_mcp_acting_user', intval(wp_unslash($_POST['aiutoma_mcp_acting_user'])));
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Settings saved.', 'aiutoma') . '</p></div>';
         }
 
@@ -1271,7 +1345,7 @@ class Mcp
                                 '<span id="aiutoma_prompt_auth_line">- <em>' . esc_html__('WordPress Application Password (Standard):', 'aiutoma') . '</em> <code id="aiutoma_prompt_auth_basic">Authorization: Basic &lt;base64(' . esc_html($selected_user_login) . ':app_password)&gt;</code> (or <code id="aiutoma_prompt_auth_curl">curl -u "' . esc_html($selected_user_login) . ':your_application_password"</code>)<br></span>' . "\n" .
                                 '<span id="aiutoma_prompt_api_key_line">- <em>' . esc_html__('API Key:', 'aiutoma') . '</em> <code>X-MCP-API-Key: ' . esc_html($token) . '</code></span>';
 
-                            echo apply_filters('aiutoma_mcp_prompt_auth_section', $default_auth_content, $token, $selected_user_login);
+                            echo wp_kses_post(apply_filters('aiutoma_mcp_prompt_auth_section', $default_auth_content, $token, $selected_user_login));
                             ?>
                             <br><br>
                             <em><strong><?php esc_html_e('SSL / Staging Note:', 'aiutoma'); ?></strong> <?php esc_html_e('If interacting with a staging or local development environment with a self-signed SSL certificate (curl error 60), pass the -k or --insecure option in your curl commands.', 'aiutoma'); ?></em>

@@ -10,6 +10,9 @@ trait Init {
         // Add button to Media Library attachment edit fields
         add_filter('attachment_fields_to_edit', [$this, 'add_seo_media_button'], 10, 2);
 
+        // Filter virtual robots.txt for AI crawlers management (priority 999999 ensures compatibility with Yoast at 99999 and Rank Math at 10)
+        add_filter('robots_txt', [$this, 'filter_robots_txt'], 999999, 2);
+
         // Register REST API endpoints
         add_action('rest_api_init', function () {
             register_rest_route('aiutoma/v1', '/optimize-media-seo', [
@@ -20,6 +23,16 @@ trait Init {
             register_rest_route('aiutoma/v1', '/save-seo-settings', [
                 'methods' => 'POST',
                 'callback' => [$this, 'api_save_seo_settings'],
+                'permission_callback' => function () { return current_user_can('manage_options'); }
+            ]);
+            register_rest_route('aiutoma/v1', '/save-robots-settings', [
+                'methods' => 'POST',
+                'callback' => [$this, 'api_save_robots_settings'],
+                'permission_callback' => function () { return current_user_can('manage_options'); }
+            ]);
+            register_rest_route('aiutoma/v1', '/get-robots-preview', [
+                'methods' => 'GET',
+                'callback' => [$this, 'api_get_robots_preview'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }
             ]);
             register_rest_route('aiutoma/v1', '/content-seo-list', [
@@ -62,6 +75,9 @@ trait Init {
                 'restOptimizeMediaUrl' => esc_url_raw(rest_url('aiutoma/v1/optimize-media-seo')),
                 'restContentListUrl' => esc_url_raw(rest_url('aiutoma/v1/content-seo-list')),
                 'restOptimizeContentUrl' => esc_url_raw(rest_url('aiutoma/v1/optimize-content-seo')),
+                'restRobotsSaveUrl' => esc_url_raw(rest_url('aiutoma/v1/save-robots-settings')),
+                'restRobotsPreviewUrl' => esc_url_raw(rest_url('aiutoma/v1/get-robots-preview')),
+                'robotsTxtUrl' => esc_url_raw(home_url('/robots.txt')),
                 'adminPostEditUrl' => esc_url_raw(admin_url('post.php?action=edit&post=')),
                 'preferredModel' => get_option('aiutoma_seo_preferred_model', ''),
                 'textModel' => get_option('aiutoma_seo_text_model', ''),
@@ -69,6 +85,7 @@ trait Init {
                 // Translations
                 'textSaving' => __('Saving...', 'aiutoma'),
                 'textSaveSettings' => __('Save Settings', 'aiutoma'),
+                'textSettingsSaved' => __('Settings saved successfully!', 'aiutoma'),
                 'textScanning' => __('Scanning...', 'aiutoma'),
                 'textScanComplete' => __('Scan Complete: Found', 'aiutoma'),
                 'textProcessing' => __('Processing...', 'aiutoma'),
@@ -90,7 +107,8 @@ trait Init {
                 'textProcessingItems' => __('Processing %d items...', 'aiutoma'),
                 'textOptimizeSelected' => __('Optimize Selected', 'aiutoma'),
                 'textOptimizedWithExclamation' => __('Optimized!', 'aiutoma'),
-                'textGenerateMeta' => __('Generate SEO Meta (AI)', 'aiutoma')
+                'textGenerateMeta' => __('Generate SEO Meta (AI)', 'aiutoma'),
+                'textCopied' => __('Copied to clipboard!', 'aiutoma')
             ]);
         }
     }

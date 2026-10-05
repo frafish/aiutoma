@@ -42,6 +42,13 @@ Empower your visitors with total legal confidence. Deploy a sleek, lightning-fas
 - **Human-in-the-Loop Handover:** Seamlessly take over live chats from the admin dashboard with real-time system notices informing visitors when an operator joins or leaves.
 - **Privacy & GDPR Controls:** Session tracking controls, customizable consent checkboxes, and automated Privacy Policy page integration.
 
+### 10. 🛡️ Advanced AI Crawlers & Robots.txt Management (Server Protection)
+Protect your server from saturation by aggressive AI bots without sacrificing search visibility:
+- **Training Bots vs. Answer Engines:** Granularly distinguish between training scrapers (ByteDance/Bytespider, Common Crawl, GPTBot, ClaudeBot, Google-Extended) and citation-generating answer engines (ChatGPT Search, Perplexity, Claude Search).
+- **Server Resource Throttling:** Block heavy data scrapers that flood PHP workers and MySQL connections, or enforce rate limiting (`Crawl-delay: 5s/10s`).
+- **Endpoint Protection:** Automatically prevents AI bots from scanning resource-heavy internal searches (`/?s=`) and REST API endpoints.
+- **Live Preview & 1-Click Presets:** Instant simulation of your generated `robots.txt` output and quick presets (*Protect Server*, *Block All*, *Allow All*).
+
 ## 🇪🇺 EU AI Act Compliance (Regulation (EU) 2024/1689)
 Aiutoma is engineered to keep your website legally compliant as an AI deployer under European law:
 - **Risk Classification:** Aiutoma operates as a **Limited Risk** AI system. It does not engage in prohibited practices (Art. 5) or high-risk decision-making (Art. 6 / Annex III).

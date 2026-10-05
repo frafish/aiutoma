@@ -61,6 +61,10 @@ add_action('plugins_loaded', function () {
     }
 
     add_action('init', function () use ($active_modules) {
+        if (!empty($active_modules['seo'])) {
+            new \Aiutoma\Modules\Seo\Seo();
+        }
+
         $has_models = \Aiutoma\Modules\Ai\Ai::instance()->has_ai_models();
 
         if ($has_models) {
@@ -70,10 +74,6 @@ add_action('plugins_loaded', function () {
 
             if (!empty($active_modules['chatbot'])) {
                 new \Aiutoma\Modules\Chatbot\Chatbot();
-            }
-
-            if (!empty($active_modules['seo'])) {
-                new \Aiutoma\Modules\Seo\Seo();
             }
 
             if (!empty($active_modules['wpml'])) {

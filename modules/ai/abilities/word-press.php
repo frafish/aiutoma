@@ -87,8 +87,22 @@ trait WordPress
 
                 if ($action === 'get') {
                     $posts = get_posts(array_merge(['post_type' => 'any', 'post_status' => 'any', 'posts_per_page' => 10], $args));
-                    $data = array_map(function ($p) {
-                        return $p->to_array();
+                    $is_single_requested = (isset($args['include']) && count((array)$args['include']) === 1) || isset($args['p']);
+                    $full = !empty($args['full_content']) || ($args['fields'] ?? '') === 'all' || $is_single_requested;
+                    $data = array_map(function ($p) use ($full) {
+                        if ($full) {
+                            return $p->to_array();
+                        }
+                        return [
+                            'ID' => $p->ID,
+                            'post_title' => $p->post_title,
+                            'post_name' => $p->post_name,
+                            'post_status' => $p->post_status,
+                            'post_type' => $p->post_type,
+                            'post_date' => $p->post_date,
+                            'post_parent' => $p->post_parent,
+                            'post_excerpt' => $p->post_excerpt ?: wp_trim_words(strip_tags($p->post_content), 20),
+                        ];
                     }, $posts);
                     return ['success' => true, 'posts' => $data];
                 } elseif ($action === 'create' || $action === 'update') {

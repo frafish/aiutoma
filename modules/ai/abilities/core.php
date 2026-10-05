@@ -235,7 +235,11 @@ trait Core
                 if ($sent) {
                     return [
                         'success' => true,
-                        'message' => sprintf(__('Email successfully dispatched to: %s', 'aiutoma'), implode(', ', $to_list)),
+                        'message' => sprintf(
+                            /* translators: %s: Comma-separated list of recipient email addresses */
+                            __('Email successfully dispatched to: %s', 'aiutoma'),
+                            implode(', ', $to_list)
+                        ),
                         'recipients' => $to_list,
                         'attachments_count' => count($resolved_attachments),
                         'attachments' => array_map('basename', $resolved_attachments)
@@ -335,98 +339,6 @@ trait Core
                     'blocks' => ['type' => 'string', 'description' => 'Raw Gutenberg block HTML (e.g. <!-- wp:paragraph --><p>Hello</p><!-- /wp:paragraph -->)']
                 ],
                 'required' => ['blocks']
-            ]
-        ]);
-
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-system', [
-            'category' => 'aiutoma',
-            'label' => __('Manage System & Cache', 'aiutoma'),
-            'description' => __('Perform system actions like flushing permalinks, clearing cache, and transients.', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $action = $input['action'];
-                if ($action === 'flush_rewrite_rules') {
-                    flush_rewrite_rules();
-                    return ['success' => true, 'message' => 'Rewrite rules flushed.'];
-                } elseif ($action === 'clear_transients') {
-                    global $wpdb;
-                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '\_transient\_%' OR option_name LIKE '\_site\_transient\_%'");
-                    return ['success' => true, 'message' => 'Transients cleared.'];
-                } elseif ($action === 'clear_cache') {
-                    $cleared = [];
-                    if (function_exists('rocket_clean_domain')) {
-                        rocket_clean_domain();
-                        $cleared[] = 'WP Rocket';
-                    }
-                    if (function_exists('w3tc_flush_all')) {
-                        w3tc_flush_all();
-                        $cleared[] = 'W3TC';
-                    }
-                    if (class_exists('LiteSpeed\Purge')) {
-                        \LiteSpeed\Purge::purge_all();
-                        $cleared[] = 'LiteSpeed';
-                    }
-                    if (function_exists('sg_cachepress_purge_cache')) {
-                        sg_cachepress_purge_cache();
-                        $cleared[] = 'SG Optimizer';
-                    }
-                    return ['success' => true, 'message' => 'Cache cleared.', 'cleared_systems' => $cleared];
-                }
-                return new \WP_Error('invalid_action', 'Unsupported action.');
-            },
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'action' => ['type' => 'string', 'enum' => ['flush_rewrite_rules', 'clear_transients', 'clear_cache'], 'description' => 'Action to perform']
-                ],
-                'required' => ['action']
-            ]
-        ]);
-
-        \Aiutoma\Modules\Ai\Abilities::register('aiutoma/manage-debug', [
-            'category' => 'aiutoma',
-            'label' => __('Manage Debug Log', 'aiutoma'),
-            'description' => __('Read or check WordPress debug logging. Reads the debug log file from the content directory.', 'aiutoma'),
-            'execute_callback' => function ($input) {
-                $action = $input['action'];
-                $log_path = (defined('WP_CONTENT_DIR') ? WP_CONTENT_DIR : dirname(wp_upload_dir()['basedir'])) . '/debug.log';
-
-                if ($action === 'read') {
-                    if (!file_exists($log_path)) {
-                        return ['success' => true, 'log' => 'Debug log is empty or does not exist.'];
-                    }
-                    $filesize = filesize($log_path);
-                    $read_size = min(100000, $filesize);
-                    $offset = max(0, $filesize - $read_size);
-                    $log_content = file_get_contents($log_path, false, null, $offset, $read_size);
-                    if ($log_content !== false) {
-                        return ['success' => true, 'log' => $log_content];
-                    }
-                    return new \WP_Error('read_error', 'Could not read debug.log.');
-                }
-
-                if ($action === 'enable' || $action === 'disable') {
-                    $is_enabled = defined('WP_DEBUG') && WP_DEBUG;
-                    return [
-                        'success' => true,
-                        'message' => $is_enabled ? 'WP_DEBUG is currently active.' : 'WP_DEBUG is not enabled in wp-config.php.'
-                    ];
-                }
-
-                return new \WP_Error('invalid_action', 'Unsupported action.');
-            },
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'action' => ['type' => 'string', 'enum' => ['enable', 'disable', 'read'], 'description' => 'Action to perform']
-                ],
-                'required' => ['action']
             ]
         ]);
 

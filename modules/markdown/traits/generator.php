@@ -60,14 +60,17 @@ trait Generator {
                 
                 if (!empty($template) && file_exists($template)) {
                     include $template;
+                    $html = ob_get_clean();
                 } else {
-                    // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound, WordPress.Security.EscapeOutput.OutputNotEscaped
-                    echo apply_filters('the_content', $post_obj->post_content);
+                    ob_end_clean();
+                    // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+                    $html = apply_filters('the_content', $post_obj->post_content);
                 }
             } catch (\Throwable $e) {
-                // Ignore render errors
+                if (ob_get_level()) {
+                    ob_end_clean();
+                }
             }
-            $html = ob_get_clean();
             wp_reset_postdata();
         } else {
             // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound

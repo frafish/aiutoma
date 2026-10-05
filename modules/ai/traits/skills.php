@@ -270,10 +270,12 @@ trait Skills {
         if (strpos($filename, '.md') === false && strpos($filename, '.txt') === false) {
             $filename .= '.md';
         }
-        header('Content-Type: text/markdown; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . esc_attr($filename) . '"');
-        echo $skill['content'];
-        exit;
+        return new \WP_REST_Response([
+            'success'  => true,
+            'id'       => $id,
+            'filename' => $filename,
+            'content'  => $skill['content'],
+        ], 200);
     }
 
     public function api_save_skill(\WP_REST_Request $request) {

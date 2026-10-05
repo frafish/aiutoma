@@ -476,11 +476,13 @@ trait WooCommerce {
 
                 $parent = wc_get_product($parent_id);
                 if (!$parent || !$parent->is_type('variable')) {
+                    /* translators: %d: Product ID */
                     return new \WP_Error('invalid_parent', sprintf(__('Product ID %d must be a variable product.', 'aiutoma'), $parent_id));
                 }
 
                 $all_children = $parent->get_children();
                 if (empty($all_children)) {
+                    /* translators: %d: Product ID */
                     return new \WP_Error('no_variations', sprintf(__('Variable product ID %d has no variations to update.', 'aiutoma'), $parent_id));
                 }
 
@@ -635,7 +637,8 @@ trait WooCommerce {
                     'total_updated' => count($updated_ids),
                     'variation_ids' => $updated_ids,
                     'applied_changes' => $applied_changes,
-                    'message' => sprintf(__('Successfully updated %d variation(s) for product %d.', 'aiutoma'), count($updated_ids), $parent_id),
+                    /* translators: 1: Count of updated variations, 2: Parent product ID */
+                    'message' => sprintf(__('Successfully updated %1$d variation(s) for product %2$d.', 'aiutoma'), count($updated_ids), $parent_id),
                 ];
             },
             'permission_callback' => function() { return current_user_can('manage_woocommerce'); },
@@ -749,6 +752,7 @@ trait WooCommerce {
 
                 $product = wc_get_product($product_id);
                 if (!$product) {
+                    /* translators: %d: Product ID */
                     return new \WP_Error('not_found', sprintf(__('Product ID %d was not found.', 'aiutoma'), $product_id));
                 }
 
@@ -764,8 +768,10 @@ trait WooCommerce {
                     $issues[] = [
                         'severity' => 'critical',
                         'code' => 'status_not_published',
+                        /* translators: %s: Product status */
                         'message' => sprintf(__('Product status is "%s". Only "publish" status products are available to shoppers.', 'aiutoma'), $status),
                     ];
+                    /* translators: %d: Product ID */
                     $recommendations[] = sprintf(__('Publish product ID %d using woocommerce/update-product (status: "publish").', 'aiutoma'), $product_id);
                 }
 
@@ -773,6 +779,7 @@ trait WooCommerce {
                     $issues[] = [
                         'severity' => 'warning',
                         'code' => 'catalog_hidden',
+                        /* translators: %s: Catalog visibility setting */
                         'message' => sprintf(__('Product catalog visibility is set to "%s" and may not appear in shop catalog listings.', 'aiutoma'), $visibility),
                     ];
                 }
@@ -842,8 +849,10 @@ trait WooCommerce {
                         $issues[] = [
                             'severity' => 'critical',
                             'code' => 'variations_missing_price',
-                            'message' => sprintf(__('%d variation(s) do not have a price set (IDs: %s). Variations without price cannot be added to cart.', 'aiutoma'), count($unpriced_ids), implode(', ', $unpriced_ids)),
+                            /* translators: 1: Count of unpriced variations, 2: Comma-separated variation IDs */
+                            'message' => sprintf(__('%1$d variation(s) do not have a price set (IDs: %2$s). Variations without price cannot be added to cart.', 'aiutoma'), count($unpriced_ids), implode(', ', $unpriced_ids)),
                         ];
+                        /* translators: %d: Product ID */
                         $recommendations[] = sprintf(__('Run woocommerce/bulk-update-variations with product_id %d and regular_price to set pricing on unpriced variations.', 'aiutoma'), $product_id);
                     }
 
@@ -873,6 +882,7 @@ trait WooCommerce {
                             'code' => 'missing_price',
                             'message' => __('Product has no active price defined.', 'aiutoma'),
                         ];
+                        /* translators: %d: Product ID */
                         $recommendations[] = sprintf(__('Set product price using woocommerce/update-product (id: %d, price: "...").', 'aiutoma'), $product_id);
                     }
                 }
@@ -960,6 +970,7 @@ trait WooCommerce {
                     ];
 
                     if (!empty($active_filters)) {
+                        /* translators: %d: Number of active filter callbacks */
                         $recommendations[] = sprintf(__('Review %d active filter callback(s) hooked to woocommerce_is_purchasable which may be altering purchasability.', 'aiutoma'), count($active_filters));
                     }
                 }
@@ -980,7 +991,8 @@ trait WooCommerce {
                 }
 
                 $summary = sprintf(
-                    __('Product #%d "%s" (%s) is %s. Cart addition: %s. %d issue(s) detected.', 'aiutoma'),
+                    /* translators: 1: Product ID, 2: Product name, 3: Product type, 4: Purchasable status text, 5: Cart addition status text, 6: Count of issues detected */
+                    __('Product #%1$d "%2$s" (%3$s) is %4$s. Cart addition: %5$s. %6$d issue(s) detected.', 'aiutoma'),
                     $product_id,
                     $product->get_name(),
                     $type,

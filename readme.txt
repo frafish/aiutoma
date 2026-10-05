@@ -29,6 +29,7 @@ Built natively on top of the WordPress 7.0 AI API, Aiutoma brings true agentic a
 * **RAG Knowledge Base**: Indexes posts, WooCommerce products, and documentation into a local vector store for hyper-accurate context.
 * **Remote Control (MCP & OpenAPI)**: Connect external AI clients like Claude Desktop or Custom GPTs via Model Context Protocol (MCP).
 * **AI-Ready SEO**: Generates clean Markdown pages and `/llms.txt` for AI search engines.
+* **AI Crawlers & Robots.txt Server Protection**: Granularly controls AI training scrapers (Bytespider, CCBot, GPTBot) vs answer search engines (Perplexity, ChatGPT Search) to prevent server overload and rate-limit bot requests.
 * **Automated Dependency Management**: One-click installation and updates of optional external libraries directly from official sources.
 
 == AI & Data Privacy Disclosures ==
